@@ -1,0 +1,10 @@
+{% extends "layout.html" %}
+{% block body %}
+  <h1>This is the page for category: {{category.name}}</h1>
+
+  It lists all the items in category: {{category.name}}:
+
+  {% for item in items %}
+    <a href = '{{url_for('show_item', category_name = item.category.name, item_name = item.name)}}'>{{item.name}}</a>
+  {% endfor %}
+{% endblock %}

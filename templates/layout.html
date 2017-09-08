@@ -1,0 +1,20 @@
+<!doctype html>
+<title>Catalog App</title>
+<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <ul class=flashes>
+    {% for message in messages %}
+      <li>{{ message }}</li>
+    {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}
+<sidebar>
+<a href = '{{url_for('show_catalog')}}'>Catalog</a>
+  {% for category in categories %}
+    <a href = '{{url_for('show_category', category_name = category.name)}}'>{{category.name}}</a>
+  {% endfor %}
+</sidebar>
+{% block body %}
+{% endblock %}

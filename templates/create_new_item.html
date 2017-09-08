@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+{% block body %}
+  <h1>This is the page to create a new item</h1>
+
+  <form action="{{ url_for('create_new_item')}}" method = 'post'>
+    Name:
+    <input required type ='text' name='name' placeholder = 'name'>
+    Description:
+    <input type ='textarea' name='description' placeholder = 'description'>
+    Category:
+    <select required name="category_id">
+      <option value="" selected>select category</option>
+      {% for category in categories %}
+        <option value='{{category.id}}'>{{category.name}}</option>
+      {% endfor %}
+    </select>
+    <input type='submit' value='Create'>
+  </form>
+  <a href = '{{url_for('show_catalog')}}'> Cancel </a>
+{% endblock %}

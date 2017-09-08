@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+{% block body %}
+  <h1>This is the page to edit item: {{item.name}}</h1>
+
+  <form action = "{{ url_for('edit_item', item_name = item.name, category_name = item.category.name)}}" method = 'put'>
+    Name:
+    <input required type ='text' name ='name' placeholder = '{{item.name }}'>
+    Description:
+    <input type ='textarea' name ='description' placeholder = '{{item.description }}'>
+    Category:
+    <select required name ="category_id">
+      {% for category in categories %}
+        {% if category.id == item.category_id %}
+          <option value ='{{category.id}}' selected>{{category.name}}</option>
+        {% else %}
+          <option value ='{{category.id}}'>{{category.name}}</option>
+        {% endif%}
+      {% endfor %}
+    </select>
+    <input type = 'submit' value = 'Edit'>
+  </form>
+  <a href = '{{url_for('show_item', category_name = item.category.name, item_name = item.name)}}'> Cancel </a>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "layout.html" %}
+{% block body %}
+  <h1>This is the home page</h1>
+  <p>Do you want to <a href = '{{url_for('create_new_item')}}'>Add Item</a>
+
+  Latest items:
+
+  {% for item in latest_items %}
+    <a href = '{{url_for('show_item', category_name = item.category.name, item_name = item.name)}}'>{{item.name}}</a>
+  {% endfor %}
+{% endblock %}
