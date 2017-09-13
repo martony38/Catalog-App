@@ -2,7 +2,6 @@
 
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import sessionmaker
 from models import Base, User, Item, Category
 
@@ -18,6 +17,38 @@ DBSession = sessionmaker(bind=engine)
 db_session = DBSession()
 
 app = Flask(__name__)
+
+
+# Helper methods
+def error_message(model, model_name, request_type):
+    error_message = "no {0} '{1}' found".format(model, model_name)
+    if request_type == 'api':
+        return (jsonify(Error=error_message), 404)
+    elif request_type == 'browser':
+        return 'error: ' + error_message
+
+
+def create_item(category_id, name, description):
+    item = Item(name=name, description=description, category_id=category_id)
+    db_session.add(item)
+    db_session.commit()
+    return item
+
+
+def update_item(item, params):
+    item.name = params['name']
+    item.description = params['description']
+    item.category_id = params['category_id']
+    db_session.add(item)
+    db_session.commit()
+
+
+def get_category_json(category):
+    # API helper function that returns a json with all items from a category
+    items = db_session.query(Item).filter_by(category_id=category.id).all()
+    category_json = category.serialize
+    category_json['items'] = [item.serialize for item in items]
+    return category_json
 
 
 @app.route('/')
@@ -38,17 +69,17 @@ def show_category(category_name):
        If a match is found, display the corresponding category page.
        If no category is found, flash an error message and redirect to the
        catalog page.'''
-    try:
-        category = (db_session.query(Category)
-                    .filter_by(name=category_name).one())
+    category = (db_session.query(Category)
+                .filter_by(name=category_name).one_or_none())
+    if category:
         items = db_session.query(Item).filter_by(category_id=category.id).all()
         categories = db_session.query(Category).all()
         return render_template('show_category.html',
                                categories=categories,
                                category=category,
                                items=items)
-    except NoResultFound:
-        flash('error: no category {} found'.format(category_name))
+    else:
+        flash(error_message('category', category_name, 'browser'))
         return redirect(url_for('show_catalog'))
 
 
@@ -58,22 +89,23 @@ def show_item(category_name, item_name):
        the uri. If a match is found, display the corresponding item page.
        If no category or item is found, flash an error message and redirect
        to the catalog or category page, respectively.'''
-    try:
-        category = (db_session.query(Category)
-                    .filter_by(name=category_name).one())
-        try:
-            item = (db_session.query(Item)
-                    .filter_by(name=item_name, category_id=category.id).one())
+    category = (db_session.query(Category)
+                .filter_by(name=category_name).one_or_none())
+    if category:
+        item = (db_session.query(Item)
+                .filter_by(name=item_name, category_id=category.id)
+                .one_or_none())
+        if item:
             categories = db_session.query(Category).all()
             return render_template('show_item.html',
                                    categories=categories,
                                    item=item)
-        except NoResultFound:
-            flash('error: no item {} found'.format(item_name))
+        else:
+            flash(error_message('item', item_name, 'browser'))
             return redirect(url_for('show_category',
                                     category_name=category.name))
-    except NoResultFound:
-        flash('error: no category {} found'.format(category_name))
+    else:
+        flash(error_message('category', category_name, 'browser'))
         return redirect(url_for('show_catalog'))
 
 
@@ -84,26 +116,30 @@ def create_new_item():
        with the  values passed in the form fields. If item is successfully
        added to the database, flash success message and redirect to the
        item category page. If not, rollback the changes, flash an error
-       message, and display the page to create a new item '''
+       message, and display the page to create a new item'''
     if request.method == 'POST':
-        item = Item(name=request.form['name'],
-                    description=request.form['description'],
-                    category_id=request.form['category_id'])
-        db_session.add(item)
-        try:
-            db_session.commit()
-            flash('item successfully created')
-            return redirect(url_for('show_category',
-                                    category_name=item.category.name))
-        except IntegrityError as e:
-            db_session.rollback()
-            flash('item not created due to error: ' + e.args[0])
+        category = db_session.query(Category).get(request.form['category_id'])
+        if category:
+            try:
+                create_item(category.id,
+                            request.form['name'],
+                            request.form['description'])
+                flash('item successfully created')
+                return redirect(url_for('show_category',
+                                        category_name=category.name))
+            except IntegrityError as e:
+                db_session.rollback()
+                flash('item not created due to error: ' + e.args[0])
+        else:
+            flash(error_message('category with id ',
+                                request.form['category_id'],
+                                'browser'))
     categories = db_session.query(Category).all()
     return render_template('create_new_item.html', categories=categories)
 
 
 @app.route('/catalog/<category_name>/<item_name>/edit',
-           methods=['GET', 'PUT'])
+           methods=['GET', 'POST'])
 def edit_item(category_name, item_name):
     '''Try to find a item in the database whose name and category name match
        the uri. If a match is found, display the page to edit this item for
@@ -114,43 +150,41 @@ def edit_item(category_name, item_name):
        message, and display the page to edit this item. If no category or
        item is found, flash an error message and redirect to the catalog
        or category page, respectively.'''
-    try:
-        category = (db_session.query(Category)
-                    .filter_by(name=category_name).one())
-        try:
-            item = (db_session.query(Item)
-                    .filter_by(name=item_name, category_id=category.id).one())
-            if request.method == 'PUT':
-                if request.form['name']:
-                    item.name = request.form['name']
-                if request.form['description']:
-                    item.description = request.form['description']
-                if request.form['category_id']:
-                    item.category_id = request.form['category_id']
-                db_session.add(item)
+    category = (db_session.query(Category)
+                .filter_by(name=category_name).one_or_none())
+    if category:
+        item = (db_session.query(Item)
+                .filter_by(name=item_name, category_id=category.id)
+                .one_or_none())
+        if item:
+            if request.method == 'GET':
+                categories = db_session.query(Category).all()
+                return render_template('edit_item.html',
+                                       item=item,
+                                       categories=categories)
+            elif request.method == 'POST':
                 try:
-                    db_session.commit()
+                    update_item(item,
+                                {'name': request.form['name'],
+                                 'description': request.form['description'],
+                                 'category_id': request.form['category_id']})
                     flash('item successfully edited')
                     return redirect(url_for('show_category',
                                             category_name=item.category.name))
                 except IntegrityError as e:
                     db_session.rollback()
                     flash('item not edited due to error: ' + e.args[0])
-        except NoResultFound:
-            flash('error: no item {} found'.format(item_name))
+        else:
+            flash(error_message('item', item_name, 'browser'))
             return redirect(url_for('show_category',
                                     category_name=category.name))
-    except NoResultFound:
-        flash('error: no category {} found'.format(category_name))
+    else:
+        flash(error_message('category', category_name, 'browser'))
         return redirect(url_for('show_catalog'))
-    categories = db_session.query(Category).all()
-    return render_template('edit_item.html',
-                           item=item,
-                           categories=categories)
 
 
 @app.route('/catalog/<category_name>/<item_name>/delete',
-           methods=['GET', 'DELETE'])
+           methods=['GET', 'POST'])
 def delete_item(category_name, item_name):
     '''Try to find a item in the database whose name and category name match
        the uri. If no category or item is found, flash an error message and
@@ -159,166 +193,107 @@ def delete_item(category_name, item_name):
        a GET request. In the case of a DELETE request, delete item from
        database, flash a success message, and redirect to the item category
        page.'''
-    try:
-        category = (db_session.query(Category)
-                    .filter_by(name=category_name).one())
-        try:
-            item = (db_session.query(Item)
-                    .filter_by(name=item_name, category_id=category.id).one())
-            if request.method == 'DELETE':
+    category = (db_session.query(Category)
+                .filter_by(name=category_name).one_or_none())
+    if category:
+        item = (db_session.query(Item)
+                .filter_by(name=item_name, category_id=category.id)
+                .one_or_none())
+        if item:
+            if request.method == 'GET':
+                categories = db_session.query(Category).all()
+                return render_template('delete_item.html',
+                                       categories=categories,
+                                       item=item)
+            elif request.method == 'POST':
                 category = item.category
                 db_session.delete(item)
                 db_session.commit()
                 flash('item successfully deleted')
                 return redirect(url_for('show_category',
                                         category_name=category.name))
-        except NoResultFound:
-            flash('error: no item {} found'.format(item_name))
+        else:
+            flash(error_message('item', item_name, 'browser'))
             return redirect(url_for('show_category',
                                     category_name=category.name))
-    except NoResultFound:
-        flash('error: no category {} found'.format(category_name))
+    else:
+        flash(error_message('category', category_name, 'browser'))
         return redirect(url_for('show_catalog'))
-    categories = db_session.query(Category).all()
-    return render_template('delete_item.html',
-                           categories=categories,
-                           item=item)
-
-
-def get_category_json(category):
-    '''Helper function to obtain all items form a category in JSON'''
-    items = db_session.query(Item).filter_by(category_id=category.id).all()
-    category_json = category.serialize
-    category_json['items'] = [item.serialize for item in items]
-    return category_json
 
 
 # API routing
-@app.route('/api/catalog', methods=['GET'])
-def show_catalog_API():
-    categories = db_session.query(Category).all()
-    return jsonify(catalog={'categories': [get_category_json(category)
-                                           for category in categories]})
+@app.route('/api/catalog', methods=['GET', 'POST'])
+def api_catalog():
+    if request.method == 'GET':
+        categories = db_session.query(Category).all()
+        return jsonify(catalog={'categories': [get_category_json(category)
+                                               for category in categories]})
 
-
-@app.route('/api/catalog/<category_name>', methods=['GET'])
-def show_category_API(category_name):
-    '''Try to find a category in the database whose name matches the uri.
-       If a match is found, return a json with all the items in the category.
-       If no category is found, return a json with an error message.'''
-    try:
-        category = (db_session.query(Category)
-                    .filter_by(name=category_name).one())
-        return jsonify(Category=get_category_json(category))
-    except NoResultFound:
-        return (jsonify(Error="no category '{}' found".format(category_name)),
-                404)
-
-
-@app.route('/api/catalog/<category_name>/<item_name>', methods=['GET'])
-def show_item_API(category_name, item_name):
-    '''Try to find a item in the database whose name and category name match
-       the uri. If a match is found, return a json corresponding to the item.
-       If no category or item is found, return a json with an error message.'''
-    try:
-        category = (db_session.query(Category)
-                    .filter_by(name=category_name).one())
+    elif request.method == 'POST':
+        '''POST method to create a new item: try to add a new item to
+           the database with the the request parameters. If item is
+           successfully added to the database, return a json with success
+           message. If not, rollback the changes and return a json with
+           an error message.'''
         try:
-            item = (db_session.query(Item)
-                    .filter_by(name=item_name, category_id=category.id).one())
-            return jsonify(Item=item.serialize)
-        except NoResultFound:
-            return jsonify(Error="no item '{}' found".format(item_name)), 404
-    except NoResultFound:
-        return (jsonify(Error="no category '{}' found".format(category_name)),
-                404)
-
-
-@app.route('/api/catalog/new', methods=['POST'])
-def create_new_item_API():
-    '''Try to find a category in the database whose name matches the request
-       parameters. If no category or item is found, return a json with an
-       error message. If a category is found, try to add a new item to the
-       database with the the request parameters. If item is successfully
-       added to the database, return a json corresponding to the item.
-       If not, rollback the changes and return a json with an error
-       message.'''
-    try:
-        category = db_session.query(Category).filter_by(
-                name=request.args.get('category_name')
-            ).one()
-        item = Item(name=request.args.get('name'),
-                    description=request.args.get('description'),
-                    category_id=category.id)
-        db_session.add(item)
-        try:
-            db_session.commit()
+            item = create_item(request.args.get('category_id'),
+                               request.args.get('name'),
+                               request.args.get('description'))
             return jsonify(Item=item.serialize)
         except IntegrityError as e:
             db_session.rollback()
             return jsonify(Error=e.args[0]), 400
-    except NoResultFound:
-        return jsonify(Error="no category '{}' found".format(
-                request.args.get('category_name')
-            )), 404
 
 
-@app.route('/api/catalog/<category_name>/<item_name>/edit', methods=['PUT'])
-def edit_item_API(category_name, item_name):
-    '''Try to find a item in the database whose name and category name match
-       the request parameters. If no category or item is found, return a
-       json with an error message. If a match is found, try to update the
-       item in the database with the values passed in the request. If
-       item is successfully updated, return a json corresponding to the
-       item. If not, rollback the changes and return a json with an error
-       message.'''
-    try:
-        category = (db_session.query(Category)
-                    .filter_by(name=category_name).one())
-        try:
-            item = (db_session.query(Item)
-                    .filter_by(name=item_name, category_id=category.id).one())
-            if 'name' in request.args:
-                item.name = request.args['name']
-            if 'description' in request.args:
-                item.description = request.args['description']
-            if 'category_id' in request.args:
-                item.category_id = request.args['category_id']
-            db_session.add(item)
-            try:
-                db_session.commit()
+@app.route('/api/catalog/<category_name>', methods=['GET'])
+def api_category(category_name):
+    category = (db_session.query(Category)
+                .filter_by(name=category_name)
+                .one_or_none())
+    if category:
+        return jsonify(Category=get_category_json(category))
+    else:
+        return error_message('category', category_name, 'api')
+
+
+@app.route('/api/catalog/<category_name>/<item_name>',
+           methods=['GET', 'PUT', 'DELETE'])
+def api_item(category_name, item_name):
+    category = (db_session.query(Category)
+                .filter_by(name=category_name)
+                .one_or_none())
+    if category:
+        item = (db_session.query(Item)
+                .filter_by(name=item_name, category_id=category.id)
+                .one_or_none())
+        if item:
+            if request.method == 'GET':
+                # Return a json corresponding to the item.
                 return jsonify(Item=item.serialize)
-            except IntegrityError as e:
-                db_session.rollback()
-                return jsonify(Error=e.args[0]), 400
-        except NoResultFound:
-            return jsonify(Error="no item '{}' found".format(item_name)), 404
-    except NoResultFound:
-        return (jsonify(Error="no category '{}' found".format(category_name)),
-                404)
-
-
-@app.route('/api/catalog/<category_name>/<item_name>/delete',
-           methods=['DELETE'])
-def delete_item_API(category_name, item_name):
-    '''Try to find a item in the database whose name and category name match
-       the request parameters. If no category or item is found, return a
-       json with an error message. If a match is found, delete item
-       from database and return a json with a success message.'''
-    try:
-        category = (db_session.query(Category)
-                    .filter_by(name=category_name).one())
-        try:
-            item = (db_session.query(Item)
-                    .filter_by(name=item_name, category_id=category.id).one())
-            db_session.delete(item)
-            db_session.commit()
-            return jsonify(Success='item deleted')
-        except NoResultFound:
-            return jsonify(Error="no item '{}' found".format(item_name)), 404
-    except NoResultFound:
-        return (jsonify(Error="no category '{}' found".format(category_name)),
-                404)
+            elif request.method == 'PUT':
+                '''PUT method to update an item: try to update the item
+                   in the database with the values passed in the request.
+                   If item is successfully updated, return a json
+                   corresponding to the item. If not, rollback the changes
+                   and return a json with an error message.'''
+                try:
+                    update_item(item,
+                                {'name': request.args['name'],
+                                 'description': request.args['description'],
+                                 'category_id': request.args['category_id']})
+                    return jsonify(Item=item.serialize)
+                except IntegrityError as e:
+                    db_session.rollback()
+                    return jsonify(Error=e.args[0]), 400
+            elif request.method == 'DELETE':
+                # delete item from database
+                db_session.delete(item)
+                db_session.commit()
+                return jsonify(Success='item deleted')
+        else:
+            return error_message('item', item_name, 'api')
+    else:
+            return error_message('category', category_name, 'api')
 
 
 @app.errorhandler(404)
