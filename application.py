@@ -519,6 +519,11 @@ def edit_item(category_name, item_name):
                 .filter_by(name=item_name, category_id=category.id)
                 .one_or_none())
         if item:
+            if session['user_id'] != item.user_id:
+                flash('You are not authorized to edit this item')
+                return redirect(url_for('show_item',
+                                        category_name=category.name,
+                                        item_name=item.name))
             if request.method == 'GET':
                 categories = db_session.query(Category).all()
                 return render_template('edit_item.html',
@@ -563,6 +568,11 @@ def delete_item(category_name, item_name):
                 .filter_by(name=item_name, category_id=category.id)
                 .one_or_none())
         if item:
+            if session['user_id'] != item.user_id:
+                flash('You are not authorized to delete this item')
+                return redirect(url_for('show_item',
+                                        category_name=category.name,
+                                        item_name=item.name))
             if request.method == 'GET':
                 categories = db_session.query(Category).all()
                 return render_template('delete_item.html',
