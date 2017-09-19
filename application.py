@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import twitter_sign
 from urllib.parse import quote, parse_qs
 
 from oauth2client import client
@@ -387,8 +386,9 @@ def error_message(model, model_name, request_type):
         return 'error: ' + error_message
 
 
-def create_item(category_id, name, description):
-    item = Item(name=name, description=description, category_id=category_id)
+def create_item(category_id, name, description, user_id):
+    item = Item(name=name, description=description, category_id=category_id,
+                user_id=user_id)
     db_session.add(item)
     db_session.commit()
     return item
@@ -483,7 +483,8 @@ def create_new_item():
             try:
                 create_item(category.id,
                             request.form['name'],
-                            request.form['description'])
+                            request.form['description'],
+                            session['user_id'])
                 flash('item successfully created')
                 return redirect(url_for('show_category',
                                         category_name=category.name))
