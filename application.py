@@ -123,7 +123,7 @@ def login(provider):
     session['oauth_state'] = state
     return redirect(auth_url)
 
-# TODO: handle case when user cancel oauth signin
+
 @app.route('/oauth2callback/<provider>')
 def oauth2_callback(provider):
     # Check to see if user is already logged in and if so redirect user.
@@ -164,17 +164,17 @@ def oauth2_callback(provider):
         flash('You can not login with this provider: {}'.format(provider))
         return redirect(url_for('show_login'))
 
-    # Fetch the access token
     oauth = OAuth2Session(client_id, state=session['oauth_state'],
                                redirect_uri=redirect_uri)
-    oauth.fetch_token(token_url, client_secret=client_secret,
-                                   authorization_response=request.url)
-
-    # Fetch protected user info.
-    r = oauth.get(protected_url, params=payload)
-
-    # Fetch the user email from provider response.
     try:
+        # Fetch the access token
+        oauth.fetch_token(token_url, client_secret=client_secret,
+                          authorization_response=request.url)
+
+        # Fetch protected user info.
+        r = oauth.get(protected_url, params=payload)
+
+        # Fetch the user email from provider response.
         if provider == 'linkedin':
             email = r.json()['emailAddress']
         elif provider == 'github':
@@ -184,15 +184,15 @@ def oauth2_callback(provider):
         else:
             email = r.json()['email']
     except:
-        # If no email is obtained from OAuth provider, flash error message and
-        # redirect to login page.
-        flash('error: could not obtain email from {}'.format(provider))
+        # If either access token or user info are not obtained from OAuth
+        # provider, flash error message and redirect to login page.
+        flash('error: could not obtain your info from {}'.format(provider))
         return redirect(url_for('show_login'))
 
     login_or_register_user(provider, email)
     return redirect(url_for('show_catalog'))
 
-
+# TODO: handle case when user cancel oauth signin
 @app.route('/oauth1callback/<provider>')
 def oauth1_callback(provider):
     #Check to see if user is already logged in and if so redirect user.
