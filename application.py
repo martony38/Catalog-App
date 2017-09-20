@@ -40,6 +40,7 @@ def debug():
 
 
 def login_required(f):
+    '''Check if user is logged in and if not redirect user.'''
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -49,14 +50,20 @@ def login_required(f):
     return decorated_function
 
 
+def redirect_user_if_already_logged_in(f):
+    '''Check if user is already logged in and if so redirect user.'''
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' in session:
+            flash('You are already logged in')
+            return redirect(url_for('show_catalog'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 @app.route('/login')
 def show_login():
-    # Create a state token to prevent request forgery.
-    # Store it in session for later validation.
-    state = hashlib.sha256(os.urandom(1024)).hexdigest()
-    session['state'] = state
-    # Set the token state in the HTML while serving it.
-    return render_template('login.html', state=state)
+    return render_template('login.html')
 
 
 def clear_session():
@@ -87,16 +94,26 @@ def disconnect():
     return redirect(url_for('show_catalog'))
 
 
-@app.route('/oauth2login/<provider>')
-def oauth2_login(provider):
-    # Get credentials
+def get_oauth_credentials(provider):
+    ''' Extract OAuth credentials from file.'''
     with open('oauth_credentials.json') as secrets_file:
         secret_json = json.load(secrets_file)[provider]
-    client_id = secret_json['client_id']
+    if provider == 'twitter':
+        client_id = secret_json['consumer_key']
+        client_secret = secret_json['consumer_secret']
+    else:
+        client_id = secret_json['client_id']
+        client_secret = secret_json['client_secret']
+    return client_id, client_secret
 
+
+@app.route('/oauth2login/<provider>')
+@redirect_user_if_already_logged_in
+def oauth2_login(provider):
+    # Configure variables for OAuth.
+    client_id, client_secret = get_oauth_credentials(provider)
     redirect_uri = url_for('oauth2_callback', provider=provider,
                                _external=True)
-
     if provider == 'google':
         scope = 'https://www.googleapis.com/auth/userinfo.email'
         auth_base_url = 'https://accounts.google.com/o/oauth2/v2/auth'
@@ -125,19 +142,10 @@ def oauth2_login(provider):
 
 
 @app.route('/oauth2callback/<provider>')
+@redirect_user_if_already_logged_in
 def oauth2_callback(provider):
-    # Check to see if user is already logged in and if so redirect user.
-    if session.get('user_id'):
-        flash('You are already logged in')
-        return redirect(url_for('show_catalog'))
-
-    # Get credentials.
-    with open('oauth_credentials.json') as secrets_file:
-        secret_json = json.load(secrets_file)[provider]
-    client_id = secret_json['client_id']
-    client_secret = secret_json['client_secret']
-
     # Configure variables for OAuth provider.
+    client_id, client_secret = get_oauth_credentials(provider)
     redirect_uri = url_for('oauth2_callback', provider=provider, _external=True)
     if provider == 'google':
         token_url = 'https://www.googleapis.com/oauth2/v4/token'
@@ -194,17 +202,14 @@ def oauth2_callback(provider):
 
 
 @app.route('/oauth1login/<provider>')
+@redirect_user_if_already_logged_in
 def oauth1_login(provider):
     # Create a state token to prevent request forgery.
     # Store it in session for later validation.
     state = hashlib.sha256(os.urandom(1024)).hexdigest()
     session['state'] = state
 
-    # Get credentials
-    with open('oauth_credentials.json') as secrets_file:
-        secret_json = json.load(secrets_file)[provider]
-    client_key = secret_json['consumer_key']
-    client_secret = secret_json['consumer_secret']
+    client_key, client_secret = get_oauth_credentials(provider)
 
     redirect_uri = url_for('oauth1_callback', provider=provider, _external=True)
     payload = {'state': state}
@@ -215,16 +220,16 @@ def oauth1_login(provider):
     if provider == 'twitter':
         scope = 'https://www.googleapis.com/auth/userinfo.email'
         auth_base_url = 'https://accounts.google.com/o/oauth2/v2/auth'
-
-
         twitter = OAuth1Session(client_key, client_secret=client_secret,
                                     callback_uri=callback_uri)
+
         # First step, fetch the request token.
         request_token_url = 'https://api.twitter.com/oauth/request_token'
         credentials = twitter.fetch_request_token(request_token_url)
         if credentials.get('oauth_callback_confirmed') == 'true':
             session['resource_owner_key'] = credentials.get('oauth_token')
-            session['resource_owner_secret'] = credentials.get('oauth_token_secret')
+            session['resource_owner_secret'] = credentials.get(
+                'oauth_token_secret')
 
             # Redirect the user
             auth_base_url = 'https://api.twitter.com/oauth/authorize'
@@ -241,12 +246,8 @@ def oauth1_login(provider):
 
 
 @app.route('/oauth1callback/<provider>')
+@redirect_user_if_already_logged_in
 def oauth1_callback(provider):
-    #Check to see if user is already logged in and if so redirect user.
-    if session.get('user_id'):
-        flash('You are already logged in')
-        return redirect(url_for('show_catalog'))
-
     # Ensure that the request is not a forgery and that the user sending
     # this connect request is the expected user.
     if request.args.get('state') != session['state']:
@@ -261,10 +262,7 @@ def oauth1_callback(provider):
     callback_uri = callback_req.url
 
     # Get credentials
-    with open('oauth_credentials.json') as secrets_file:
-        secret_json = json.load(secrets_file)[provider]
-    client_key = secret_json['consumer_key']
-    client_secret = secret_json['consumer_secret']
+    client_key, client_secret = get_oauth_credentials(provider)
 
     if provider == 'twitter':
         # Verify that the token matches the request token received
