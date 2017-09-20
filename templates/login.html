@@ -1,10 +1,11 @@
 {% extends "layout.html" %}
 {% block body %}
 <div class='login'>
-    <a class='google sign-in-btn' href='/oauth2callback/google?state={{state}}'></a>
-    <a class='facebook sign-in-btn' href='/oauth2callback/facebook?state={{state}}'></a>
-    <a class='github sign-in-btn' href='/oauth2callback/github?state={{state}}'>sign in with GitHub</a>
-    <a class='twitter sign-in-btn' href='/oauth2callback/twitter?state={{state}}'>sign in with Twitter</a>
-    <a class='linkedin sign-in-btn' href='/oauth2callback/linkedin?state={{state}}'>sign in with Linkedin</a>
+    <a class='google sign-in-btn' href='{{url_for('oauth2_login', provider = 'google')}}'></a>
+    <a class='facebook sign-in-btn' href='{{url_for('oauth2_login', provider = 'facebook')}}'></a>
+    <a class='github sign-in-btn' href='{{url_for('oauth2_login', provider = 'github')}}'>sign in with GitHub</a>
+    <a class='linkedin sign-in-btn' href='{{url_for('oauth2_login', provider = 'linkedin')}}'>sign in with Linkedin</a>
+    <a class='twitter sign-in-btn' href='{{url_for('oauth1_login', provider = 'twitter')}}'>sign in with Twitter</a>
+
 </div>
 {% endblock %}

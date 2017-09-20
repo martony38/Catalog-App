@@ -87,8 +87,8 @@ def disconnect():
     return redirect(url_for('show_catalog'))
 
 
-@app.route('/oauthlogin/<provider>')
-def login(provider):
+@app.route('/oauth2login/<provider>')
+def oauth2_login(provider):
     # Get credentials
     with open('oauth_credentials.json') as secrets_file:
         secret_json = json.load(secrets_file)[provider]
@@ -192,7 +192,54 @@ def oauth2_callback(provider):
     login_or_register_user(provider, email)
     return redirect(url_for('show_catalog'))
 
-# TODO: handle case when user cancel oauth signin
+
+@app.route('/oauth1login/<provider>')
+def oauth1_login(provider):
+    # Create a state token to prevent request forgery.
+    # Store it in session for later validation.
+    state = hashlib.sha256(os.urandom(1024)).hexdigest()
+    session['state'] = state
+
+    # Get credentials
+    with open('oauth_credentials.json') as secrets_file:
+        secret_json = json.load(secrets_file)[provider]
+    client_key = secret_json['consumer_key']
+    client_secret = secret_json['consumer_secret']
+
+    redirect_uri = url_for('oauth1_callback', provider=provider, _external=True)
+    payload = {'state': state}
+    callback_req = PreparedRequest()
+    callback_req.prepare_url(redirect_uri, payload)
+    callback_uri = callback_req.url
+
+    if provider == 'twitter':
+        scope = 'https://www.googleapis.com/auth/userinfo.email'
+        auth_base_url = 'https://accounts.google.com/o/oauth2/v2/auth'
+
+
+        twitter = OAuth1Session(client_key, client_secret=client_secret,
+                                    callback_uri=callback_uri)
+        # First step, fetch the request token.
+        request_token_url = 'https://api.twitter.com/oauth/request_token'
+        credentials = twitter.fetch_request_token(request_token_url)
+        if credentials.get('oauth_callback_confirmed') == 'true':
+            session['resource_owner_key'] = credentials.get('oauth_token')
+            session['resource_owner_secret'] = credentials.get('oauth_token_secret')
+
+            # Redirect the user
+            auth_base_url = 'https://api.twitter.com/oauth/authorize'
+            auth_url = twitter.authorization_url(auth_base_url)
+            return redirect(auth_url)
+        else:
+            flash('error while requesting token to Twitter')
+            return redirect(url_for('show_login'))
+
+    else:
+        flash('You can not login with this provider: {}'.format(provider))
+        return redirect(url_for('show_login'))
+
+
+
 @app.route('/oauth1callback/<provider>')
 def oauth1_callback(provider):
     #Check to see if user is already logged in and if so redirect user.
@@ -219,57 +266,47 @@ def oauth1_callback(provider):
     client_key = secret_json['consumer_key']
     client_secret = secret_json['consumer_secret']
 
-    # Twitter OAuth
     if provider == 'twitter':
-        if 'oauth_token' not in request.args or 'oauth_verifier' not in request.args:
-            twitter = OAuth1Session(client_key, client_secret=client_secret,
-                                    callback_uri=callback_uri)
-            # First step, fetch the request token.
-            request_token_url = 'https://api.twitter.com/oauth/request_token'
-            credentials = twitter.fetch_request_token(request_token_url)
-            if credentials.get('oauth_callback_confirmed') == 'true':
-                session['resource_owner_key'] = credentials.get('oauth_token')
-                session['resource_owner_secret'] = credentials.get('oauth_token_secret')
-
-                # Redirect the user
-                auth_base_url = 'https://api.twitter.com/oauth/authorize'
-                auth_url = twitter.authorization_url(auth_base_url)
-                return redirect(auth_url)
-            else:
-                flash('error while requesting token to Twitter')
-                return redirect(url_for('show_login'))
-        else:
-            # Verify that the token matches the request token received
-            # in the first step of the flow.
-            if request.args.get('oauth_token') == session['resource_owner_key']:
-                # Convert the request token to an access token.
-                access_token_url = 'https://api.twitter.com/oauth/access_token'
-                twitter = OAuth1Session(client_key,
-                          client_secret=client_secret,
-                          resource_owner_key=session['resource_owner_key'],
-                          resource_owner_secret=session['resource_owner_secret'],
-                          verifier=request.args.get('oauth_verifier'))
+        # Verify that the token matches the request token received
+        # in the first step of the flow.
+        if request.args.get('oauth_token') == session['resource_owner_key']:
+            # Convert the request token to an access token.
+            access_token_url = 'https://api.twitter.com/oauth/access_token'
+            twitter = OAuth1Session(client_key,
+                      client_secret=client_secret,
+                      resource_owner_key=session['resource_owner_key'],
+                      resource_owner_secret=session['resource_owner_secret'],
+                      verifier=request.args.get('oauth_verifier'))
+            try:
                 credentials = twitter.fetch_access_token(access_token_url)
                 resource_owner_key = credentials.get('oauth_token')
                 resource_owner_secret = credentials.get('oauth_token_secret')
+            except:
+                flash('error: could not get access token')
+                return redirect(url_for('show_login'))
 
-                # Access user info.
-                protected_url = ('https://api.twitter.com/1.1/account/'
-                                 'verify_credentials.json')
-                payload = {'include_email': 'true'}
-                twitter = OAuth1Session(client_key,
-                          client_secret=client_secret,
-                          resource_owner_key=resource_owner_key,
-                          resource_owner_secret=resource_owner_secret)
+            # Set up OAuth to Access user info.
+            protected_url = ('https://api.twitter.com/1.1/account/'
+                             'verify_credentials.json')
+            payload = {'include_email': 'true'}
+            twitter = OAuth1Session(client_key,
+                      client_secret=client_secret,
+                      resource_owner_key=resource_owner_key,
+                      resource_owner_secret=resource_owner_secret)
+
+            # Fetch the user email from provider.
+            try:
                 r = twitter.get(protected_url, params=payload)
-                # Fetch the user email from provider response.
-                try:
-                    email = r.json()['email']
-                except:
-                    # If no email is obtained from OAuth provider, flash error message and
-                    # redirect to login page.
-                    flash('error: could not obtain email from {}'.format(provider))
-                    return redirect(url_for('show_login'))
+                email = r.json()['email']
+            except:
+                # If no email is obtained from OAuth provider, flash error
+                # message and redirect to login page.
+                flash('error: could not obtain email from {}'.format(provider))
+                return redirect(url_for('show_login'))
+        else:
+            flash('error: no token or wrong token received from provider')
+            return redirect(url_for('show_login'))
+
     else:
         flash('You can not login with this provider: {}'.format(provider))
         return redirect(url_for('show_login'))
