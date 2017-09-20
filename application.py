@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-from urllib.parse import quote, parse_qs
-
-from oauth2client import client
-import httplib2
 import json
 
-import requests
-from requests_oauthlib import OAuth1
+from requests import PreparedRequest
+from requests_oauthlib import OAuth1Session, OAuth2Session
 
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
@@ -30,6 +26,11 @@ engine = create_engine('sqlite:///catalog.db')
 Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
 db_session = DBSession()
+
+# For development and testing purposes, enable oauth2 to work without ssl so
+# that the fetch_token method from requests_oauthlib do not raise:
+# oauthlib.oauth2.rfc6749.errors.InsecureTransportError
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 app = Flask(__name__)
 
@@ -81,43 +82,120 @@ def clear_session():
 
 @app.route('/logout')
 def disconnect():
-    if session.get('provider') == 'google':
-        # Revoke OAuth credentials
-        credentials = client.OAuth2Credentials.from_json(session['credentials'])
-        try:
-            credentials.revoke(httplib2.Http())
-        except:
-            flash('Revoking OAuth credentials failed')
-
-    elif session.get('provider') == 'facebook':
-        # Revoke access token
-        url = 'https://graph.facebook.com/{}/permissions'.format(quote(session['facebook_id']))
-        payload = {'access_token': session['access_token']}
-        r = requests.delete(url, params=payload)
-        if 'error' in r.json():
-            flash('Revoking OAuth credentials failed')
-
-    elif session.get('provider') == 'github':
-        # Revoke access token not working
-        with open('oauth_credentials.json') as secrets_file:
-            secret_json = json.load(secrets_file)['github']
-        client_id = secret_json['client_id']
-        client_secret = secret_json['client_secret']
-        url = ('https://api.github.com/applications/' + quote(client_id) +
-            '/tokens/' + quote(session['access_token']))
-        r = requests.delete(url, auth=(client_id, client_secret))
-        if r.status_code != 204:
-            flash('Revoking OAuth credentials failed')
-
     clear_session()
     flash('You have been logged out')
     return redirect(url_for('show_catalog'))
 
 
+@app.route('/oauthlogin/<provider>')
+def login(provider):
+    # Get credentials
+    with open('oauth_credentials.json') as secrets_file:
+        secret_json = json.load(secrets_file)[provider]
+    client_id = secret_json['client_id']
+
+    redirect_uri = url_for('oauth2_callback', provider=provider,
+                               _external=True)
+
+    if provider == 'google':
+        scope = 'https://www.googleapis.com/auth/userinfo.email'
+        auth_base_url = 'https://accounts.google.com/o/oauth2/v2/auth'
+
+    elif provider == 'github':
+        scope = 'user:email'
+        auth_base_url = 'https://github.com/login/oauth/authorize'
+
+    elif provider == 'facebook':
+        scope = 'email'
+        auth_base_url = 'https://www.facebook.com/v2.10/dialog/oauth'
+
+    elif provider == 'linkedin':
+        scope = None
+        auth_base_url = 'https://www.linkedin.com/oauth/v2/authorization'
+
+    else:
+        flash('You can not login with this provider: {}'.format(provider))
+        return redirect(url_for('show_login'))
+
+    oauth = OAuth2Session(client_id, redirect_uri=redirect_uri,
+                                 scope=scope)
+    auth_url, state = oauth.authorization_url(auth_base_url)
+    session['oauth_state'] = state
+    return redirect(auth_url)
+
 # TODO: handle case when user cancel oauth signin
 @app.route('/oauth2callback/<provider>')
-def oauth_callback(provider):
-    #Check to see if user is already logged in and redirect logged in user.
+def oauth2_callback(provider):
+    # Check to see if user is already logged in and if so redirect user.
+    if session.get('user_id'):
+        flash('You are already logged in')
+        return redirect(url_for('show_catalog'))
+
+    # Get credentials.
+    with open('oauth_credentials.json') as secrets_file:
+        secret_json = json.load(secrets_file)[provider]
+    client_id = secret_json['client_id']
+    client_secret = secret_json['client_secret']
+
+    # Configure variables for OAuth provider.
+    redirect_uri = url_for('oauth2_callback', provider=provider, _external=True)
+    if provider == 'google':
+        token_url = 'https://www.googleapis.com/oauth2/v4/token'
+        protected_url = 'https://www.googleapis.com/oauth2/v1/userinfo'
+        payload = {}
+
+    elif provider == 'github':
+        token_url = 'https://github.com/login/oauth/access_token'
+        protected_url = 'https://api.github.com/user/emails'
+        payload = {}
+
+    elif provider == 'facebook':
+        token_url = 'https://graph.facebook.com/v2.10/oauth/access_token'
+        protected_url = 'https://graph.facebook.com/v2.10/me'
+        payload = {'fields': 'email'}
+
+    elif provider == 'linkedin':
+        token_url = 'https://www.linkedin.com/oauth/v2/accessToken'
+        protected_url = 'https://api.linkedin.com/v1/people/~:(email-address)'
+        payload = {'format': 'json'}
+
+    # Flash error message and redirect user if an unknown provider is used.
+    else:
+        flash('You can not login with this provider: {}'.format(provider))
+        return redirect(url_for('show_login'))
+
+    # Fetch the access token
+    oauth = OAuth2Session(client_id, state=session['oauth_state'],
+                               redirect_uri=redirect_uri)
+    oauth.fetch_token(token_url, client_secret=client_secret,
+                                   authorization_response=request.url)
+
+    # Fetch protected user info.
+    r = oauth.get(protected_url, params=payload)
+
+    # Fetch the user email from provider response.
+    try:
+        if provider == 'linkedin':
+            email = r.json()['emailAddress']
+        elif provider == 'github':
+            for email_item in r.json():
+                if email_item['primary'] == True:
+                    email = email_item['email']
+        else:
+            email = r.json()['email']
+    except:
+        # If no email is obtained from OAuth provider, flash error message and
+        # redirect to login page.
+        flash('error: could not obtain email from {}'.format(provider))
+        return redirect(url_for('show_login'))
+
+    login_or_register_user(provider, email)
+    return redirect(url_for('show_catalog'))
+
+
+@app.route('/oauth1callback/<provider>')
+def oauth1_callback(provider):
+    #Check to see if user is already logged in and if so redirect user.
     if session.get('user_id'):
         flash('You are already logged in')
         return redirect(url_for('show_catalog'))
@@ -129,181 +207,34 @@ def oauth_callback(provider):
         response.headers['Content-Type'] = 'application/json'
         return response
 
-    redirect_uri = url_for('oauth_callback', provider=provider, _external=True)
+    redirect_uri = url_for('oauth1_callback', provider=provider, _external=True)
+    payload = {'state': request.args.get('state')}
+    callback_req = PreparedRequest()
+    callback_req.prepare_url(redirect_uri, payload)
+    callback_uri = callback_req.url
 
     # Get credentials
     with open('oauth_credentials.json') as secrets_file:
         secret_json = json.load(secrets_file)[provider]
-
-    auth_code = request.args.get('code')
-
-    # Google OAuth
-    if provider == 'google':
-        flow = client.flow_from_clientsecrets('google_oauth_credentials.json',
-                                              scope='openid email profile',
-                                              redirect_uri=redirect_uri)
-        if auth_code:
-            credentials = flow.step2_exchange(auth_code)
-            user = login_or_register_user(provider, credentials.id_token['email'])
-            session['credentials'] = credentials.to_json()
-            return redirect(url_for('show_catalog'))
-        else:
-            auth_uri = flow.step1_get_authorize_url(
-                state=request.args.get('state')
-            )
-            return redirect(auth_uri)
-
-    # Facebook OAuth
-    elif provider == 'facebook':
-        app_secret = secret_json['app_secret']
-        app_id = secret_json['app_id']
-        if auth_code:
-            # Exchange code for an access token.
-            url = 'https://graph.facebook.com/v2.10/oauth/access_token'
-            payload = {'client_id': app_id, 'redirect_uri': redirect_uri,
-                       'client_secret': app_secret, 'code': auth_code}
-            r = requests.get(url, params=payload)
-            access_token = r.json()['access_token']
-
-            # Obtain app token.
-            payload = {'client_id': app_id, 'client_secret': app_secret,
-                       'grant_type': 'client_credentials'}
-            r = requests.get(url, params=payload)
-            app_token = r.json()['access_token']
-
-            # Inspect access token using app token.
-            url = 'https://graph.facebook.com/debug_token'
-            payload = {'input_token': access_token, 'access_token': app_token}
-            r = requests.get(url, params=payload)
-
-            if 'error' in r.json():
-                flash('access token and/or app token not valid')
-                return redirect(url_for('show_login'))
-
-            # Check app id
-            elif r.json()['data']['is_valid'] and r.json()['data']['app_id'] == app_id:
-                # Use token to get user info from Facebook.
-                url = 'https://graph.facebook.com/v2.10/me'
-                payload = {'access_token': access_token,
-                           'fields': 'name,id,email'}
-                r = requests.get(url, params=payload)
-                user = login_or_register_user(provider, r.json()['email'])
-
-                # Update session parameters
-                session['facebook_id'] = r.json()["id"]
-                session['access_token'] = access_token
-
-                return redirect(url_for('show_catalog'))
-
-            else:
-                flash('access_token not valid for this app')
-                return redirect(url_for('show_login'))
-        else:
-            url = 'https://www.facebook.com/v2.10/dialog/oauth'
-            payload = {'client_id': app_id, 'redirect_uri': redirect_uri,
-                       'state': request.args.get('state'), 'scope': 'email'}
-            redirect_req = requests.PreparedRequest()
-            redirect_req.prepare_url(url, payload)
-            return redirect(redirect_req.url)
-
-
-    # GitHub OAuth
-    elif provider == 'github':
-        client_id = secret_json['client_id']
-        client_secret = secret_json['client_secret']
-        if auth_code:
-            # Exchange Code for an Access Token.
-            url = 'https://github.com/login/oauth/access_token'
-            payload = {'client_id': client_id, 'redirect_uri': redirect_uri,
-                       'client_secret': client_secret, 'code': auth_code}
-            headers = {'Accept': 'application/json'}
-            r = requests.post(url, params=payload, headers=headers)
-            access_token = r.json()['access_token']
-
-            # Use token to get user info from GitHub.
-            url = 'https://api.github.com/user/emails'
-            headers = {'Authorization': 'token {}'.format(access_token)}
-            r = requests.get(url, headers=headers)
-            for email in r.json():
-                if email['primary'] == True:
-                    user = login_or_register_user(provider, email['email'])
-
-                    # Update session parameters
-                    session['access_token'] = access_token
-
-                    return redirect(url_for('show_catalog'))
-            # If no email is obtained from GitHub, flash error message and
-            # redirect to login page
-            flash('error: could not obtain credentials from Github')
-            return redirect(url_for('show_login'))
-        else:
-            url = 'https://github.com/login/oauth/authorize'
-            payload = {'client_id': client_id, 'redirect_uri': redirect_uri,
-                       'state': request.args.get('state'),
-                       'scope': 'user:email'}
-            redirect_req = requests.PreparedRequest()
-            redirect_req.prepare_url(url, payload)
-            return redirect(redirect_req.url)
-
-    # LinkedIn OAuth
-    elif provider == 'linkedin':
-        if auth_code:
-            # Exchange Code for an Access Token.
-            url = 'https://www.linkedin.com/oauth/v2/accessToken'
-            payload = {'grant_type': 'authorization_code',
-                       'client_id': secret_json['client_id'],
-                       'redirect_uri': redirect_uri,
-                       'client_secret': secret_json['client_secret'],
-                       'code': auth_code}
-            headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-            r = requests.post(url, params=payload, headers=headers)
-            access_token = r.json()['access_token']
-
-            # Use token to get user info from LinkedIn.
-            url = 'https://api.linkedin.com/v1/people/~:(email-address)'
-            payload = {'format': 'json'}
-            headers = {'Authorization': 'Bearer {}'.format(access_token)}
-            r = requests.get(url, params=payload, headers=headers)
-            email = r.json()['emailAddress']
-            user = login_or_register_user(provider, email)
-
-            # Update session parameters
-            session['access_token'] = access_token
-
-            return redirect(url_for('show_catalog'))
-        else:
-            url = 'https://www.linkedin.com/oauth/v2/authorization'
-            payload = {'response_type': 'code',
-                       'client_id': secret_json['client_id'],
-                       'redirect_uri': redirect_uri,
-                       'state': request.args.get('state')}
-            redirect_req = requests.PreparedRequest()
-            redirect_req.prepare_url(url, payload)
-            return redirect(redirect_req.url)
+    client_key = secret_json['consumer_key']
+    client_secret = secret_json['consumer_secret']
 
     # Twitter OAuth
-    elif provider == 'twitter':
+    if provider == 'twitter':
         if 'oauth_token' not in request.args or 'oauth_verifier' not in request.args:
-            # Obtain a request token.
-            payload = {'state': request.args.get('state')}
-            callback_req = requests.PreparedRequest()
-            callback_req.prepare_url(redirect_uri, payload)
+            twitter = OAuth1Session(client_key, client_secret=client_secret,
+                                    callback_uri=callback_uri)
+            # First step, fetch the request token.
             request_token_url = 'https://api.twitter.com/oauth/request_token'
-            oauth = OAuth1(secret_json['consumer_key'],
-                           client_secret=secret_json['consumer_secret'],
-                           callback_uri=callback_req.url)
-            r = requests.post(url=request_token_url, auth=oauth)
-            credentials = parse_qs(r.text)
-            if credentials.get('oauth_callback_confirmed')[0] == 'true':
-                session['resource_owner_key'] = credentials.get('oauth_token')[0]
-                session['resource_owner_secret'] = credentials.get('oauth_token_secret')[0]
+            credentials = twitter.fetch_request_token(request_token_url)
+            if credentials.get('oauth_callback_confirmed') == 'true':
+                session['resource_owner_key'] = credentials.get('oauth_token')
+                session['resource_owner_secret'] = credentials.get('oauth_token_secret')
 
                 # Redirect the user
-                url = 'https://api.twitter.com/oauth/authenticate'
-                payload = {'oauth_token': session['resource_owner_key']}
-                redirect_req = requests.PreparedRequest()
-                redirect_req.prepare_url(url, payload)
-                return redirect(redirect_req.url)
+                auth_base_url = 'https://api.twitter.com/oauth/authorize'
+                auth_url = twitter.authorization_url(auth_base_url)
+                return redirect(auth_url)
             else:
                 flash('error while requesting token to Twitter')
                 return redirect(url_for('show_login'))
@@ -311,36 +242,40 @@ def oauth_callback(provider):
             # Verify that the token matches the request token received
             # in the first step of the flow.
             if request.args.get('oauth_token') == session['resource_owner_key']:
-
                 # Convert the request token to an access token.
                 access_token_url = 'https://api.twitter.com/oauth/access_token'
-                oauth = OAuth1(secret_json['consumer_key'],
-                    client_secret=secret_json['consumer_secret'],
-                    resource_owner_key=session['resource_owner_key'],
-                    resource_owner_secret=session['resource_owner_secret'],
-                    verifier=request.args.get('oauth_verifier')
-                )
-                r = requests.post(url=access_token_url, auth=oauth)
-                credentials = parse_qs(r.text)
-                session['resource_owner_key'] = credentials.get('oauth_token')[0]
-                session['resource_owner_secret'] = credentials.get('oauth_token_secret')[0]
+                twitter = OAuth1Session(client_key,
+                          client_secret=client_secret,
+                          resource_owner_key=session['resource_owner_key'],
+                          resource_owner_secret=session['resource_owner_secret'],
+                          verifier=request.args.get('oauth_verifier'))
+                credentials = twitter.fetch_access_token(access_token_url)
+                resource_owner_key = credentials.get('oauth_token')
+                resource_owner_secret = credentials.get('oauth_token_secret')
 
                 # Access user info.
                 protected_url = ('https://api.twitter.com/1.1/account/'
                                  'verify_credentials.json')
                 payload = {'include_email': 'true'}
-                oauth = OAuth1(secret_json['consumer_key'],
-                    client_secret=secret_json['consumer_secret'],
-                    resource_owner_key=session['resource_owner_key'],
-                    resource_owner_secret=session['resource_owner_secret']
-                )
-                r = requests.get(url=protected_url, params=payload, auth=oauth)
-                email = r.json()['email']
-                user = login_or_register_user(provider, email)
+                twitter = OAuth1Session(client_key,
+                          client_secret=client_secret,
+                          resource_owner_key=resource_owner_key,
+                          resource_owner_secret=resource_owner_secret)
+                r = twitter.get(protected_url, params=payload)
+                # Fetch the user email from provider response.
+                try:
+                    email = r.json()['email']
+                except:
+                    # If no email is obtained from OAuth provider, flash error message and
+                    # redirect to login page.
+                    flash('error: could not obtain email from {}'.format(provider))
+                    return redirect(url_for('show_login'))
+    else:
+        flash('You can not login with this provider: {}'.format(provider))
+        return redirect(url_for('show_login'))
 
-                return redirect(url_for('show_catalog'))
-
-
+    login_or_register_user(provider, email)
+    return redirect(url_for('show_catalog'))
 
 
 def login_or_register_user(provider, email):
@@ -353,7 +288,6 @@ def login_or_register_user(provider, email):
     session['provider'] = provider
     session['user_id'] = user.id
     session['email'] = user.email
-    return user
 
 
 @auth.verify_password
