@@ -4,6 +4,8 @@ import json
 from requests import PreparedRequest
 from requests_oauthlib import OAuth1Session, OAuth2Session
 
+from flask.ext.seasurf import SeaSurf
+
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
@@ -34,6 +36,9 @@ os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 app = Flask(__name__)
 
+# Add CSRF protection using SeaSurf (http://flask-seasurf.readthedocs.io).
+csrf = SeaSurf(app)
+
 
 def debug():
     assert app.debug == False
@@ -59,38 +64,6 @@ def redirect_user_if_already_logged_in(f):
             return redirect(url_for('show_catalog'))
         return f(*args, **kwargs)
     return decorated_function
-
-
-# Code for CSRF protection inspired from flask snippet available at:
-# http://flask.pocoo.org/snippets/3/
-@app.before_request
-def csrf_protect():
-    if request.method in ['POST', 'PUT', 'DELETE']:
-        token = session.pop('_csrf_token', None)
-
-        # If request comes from web UI it should include a CSRF token.
-        if token:
-            # Check CSRF token
-            if token != request.form.get('_csrf_token'):
-                abort(400)
-
-            # Check Referer header as extra security
-            if 'http://localhost:5000/' not in request.headers['Referer']:
-                abort(400)
-
-        # If it is an API request, there is no CSRF token.
-        else:
-            # TODO: check API token
-            pass
-
-
-def generate_csrf_token():
-    if '_csrf_token' not in session:
-        session['_csrf_token'] = hashlib.sha256(os.urandom(1024)).hexdigest()
-    return session['_csrf_token']
-
-
-app.jinja_env.globals['csrf_token'] = generate_csrf_token
 
 
 @app.route('/login')
@@ -357,8 +330,6 @@ def login_or_register_user(provider, email):
     session['provider'] = provider
     session['user_id'] = user.id
     session['email'] = user.email
-    # Create a csrf token to protect crud operations.
-    generate_csrf_token()
 
 
 @auth.verify_password
