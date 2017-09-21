@@ -4,7 +4,7 @@ import json
 from requests import PreparedRequest
 from requests_oauthlib import OAuth1Session, OAuth2Session
 
-from flask.ext.seasurf import SeaSurf
+from flask_seasurf import SeaSurf
 
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
@@ -20,8 +20,6 @@ import sys
 
 from functools import wraps
 
-from flask_httpauth import HTTPBasicAuth
-auth = HTTPBasicAuth()
 
 # Connect to database
 engine = create_engine('sqlite:///catalog.db')
@@ -44,6 +42,24 @@ def debug():
     assert app.debug == False
 
 
+def verify_token(f):
+    '''Check API authorization token.'''
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.method in ['POST', 'PUT', 'DELETE']:
+            user_id = User.verify_auth_token(request.headers['auth_token'])
+            print(request.headers['auth_token'])
+            if user_id:
+                user = db_session.query(User).get(user_id)
+                if user:
+                    g.user = user
+                    return f(*args, **kwargs)
+            return jsonify(Error='wrong authorization token')
+        else:
+            return f(*args, **kwargs)
+    return decorated_function
+
+
 def login_required(f):
     '''Check if user is logged in and if not redirect user.'''
     @wraps(f)
@@ -64,11 +80,6 @@ def redirect_user_if_already_logged_in(f):
             return redirect(url_for('show_catalog'))
         return f(*args, **kwargs)
     return decorated_function
-
-
-@app.route('/login')
-def show_login():
-    return render_template('login.html')
 
 
 def clear_session():
@@ -94,13 +105,6 @@ def clear_session():
         del session['_csrf_token']
 
 
-@app.route('/logout')
-def disconnect():
-    clear_session()
-    flash('You have been logged out')
-    return redirect(url_for('show_catalog'))
-
-
 def get_oauth_credentials(provider):
     ''' Extract OAuth credentials from file.'''
     with open('oauth_credentials.json') as secrets_file:
@@ -112,6 +116,71 @@ def get_oauth_credentials(provider):
         client_id = secret_json['client_id']
         client_secret = secret_json['client_secret']
     return client_id, client_secret
+
+
+def login_or_register_user(provider, email):
+    '''Check if user exists, if not create new user and log them in'''
+    user = db_session.query(User).filter_by(email=email).first()
+    if not user:
+        user = User(email=email)
+        db_session.add(user)
+        db_session.commit()
+    session['provider'] = provider
+    session['user_id'] = user.id
+    session['email'] = user.email
+
+
+def error_message(model, model_name, request_type):
+    error_message = "no {0} '{1}' found".format(model, model_name)
+    if request_type == 'api':
+        return (jsonify(Error=error_message), 404)
+    elif request_type == 'browser':
+        return 'error: ' + error_message
+
+
+def create_item(category_id, name, description, user_id):
+    item = Item(name=name, description=description, category_id=category_id,
+                user_id=user_id)
+    db_session.add(item)
+    db_session.commit()
+    return item
+
+
+def update_item(item, category_id, name, description):
+    item.name = name
+    item.description = description
+    item.category_id = category_id
+    db_session.add(item)
+    db_session.commit()
+
+
+def get_category_json(category):
+    # API helper function that returns a json with all items from a category
+    items = db_session.query(Item).filter_by(category_id=category.id).all()
+    category_json = category.serialize
+    category_json['items'] = [item.serialize for item in items]
+    return category_json
+
+
+# Get a token for a user with login credentials
+@app.route('/token', methods = ['GET'])
+@login_required
+def get_api_auth_token():
+    user = db_session.query(User).get(session['user_id'])
+    token = user.generate_auth_token()
+    return render_template('api_token.html', token=token.decode('ascii'),)
+
+
+@app.route('/login' methods = ['GET'])
+def show_login():
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def disconnect():
+    clear_session()
+    flash('You have been logged out')
+    return redirect(url_for('show_catalog'))
 
 
 @app.route('/oauth2login/<provider>')
@@ -320,72 +389,6 @@ def oauth1_callback(provider):
     return redirect(url_for('show_catalog'))
 
 
-def login_or_register_user(provider, email):
-    '''Check if user exists, if not create new user'''
-    user = db_session.query(User).filter_by(email=email).first()
-    if not user:
-        user = User(email=email)
-        db_session.add(user)
-        db_session.commit()
-    session['provider'] = provider
-    session['user_id'] = user.id
-    session['email'] = user.email
-
-
-@auth.verify_password
-def verify_password(email_or_token, password):
-    user_id = User.verify_auth_token(email_or_token)
-    if user_id:
-        user = db_session.query(User).get(user_id)
-    else:
-        user = db_session.query(User).filter_by(email=email_or_token).first()
-        if not user or not user.verify_password(password):
-            return False
-    g.user = user
-    return True
-
-
-# Get a token for a user with login credentials
-@app.route('/token', methods = ['GET'])
-@auth.login_required
-def get_auth_token():
-    token = g.user.generate_auth_token()
-    return jsonify({'token': token.decode('ascii')})
-
-
-# Helper methods
-def error_message(model, model_name, request_type):
-    error_message = "no {0} '{1}' found".format(model, model_name)
-    if request_type == 'api':
-        return (jsonify(Error=error_message), 404)
-    elif request_type == 'browser':
-        return 'error: ' + error_message
-
-
-def create_item(category_id, name, description, user_id):
-    item = Item(name=name, description=description, category_id=category_id,
-                user_id=user_id)
-    db_session.add(item)
-    db_session.commit()
-    return item
-
-
-def update_item(item, params):
-    item.name = params['name']
-    item.description = params['description']
-    item.category_id = params['category_id']
-    db_session.add(item)
-    db_session.commit()
-
-
-def get_category_json(category):
-    # API helper function that returns a json with all items from a category
-    items = db_session.query(Item).filter_by(category_id=category.id).all()
-    category_json = category.serialize
-    category_json['items'] = [item.serialize for item in items]
-    return category_json
-
-
 @app.route('/')
 @app.route('/catalog', methods=['GET'])
 def show_catalog():
@@ -454,6 +457,7 @@ def create_new_item():
        item category page. If not, rollback the changes, flash an error
        message, and display the page to create a new item'''
     if request.method == 'POST':
+        debug()
         category = db_session.query(Category).get(request.form['category_id'])
         if category:
             try:
@@ -506,10 +510,9 @@ def edit_item(category_name, item_name):
                                        categories=categories)
             elif request.method == 'POST':
                 try:
-                    update_item(item,
-                                {'name': request.form['name'],
-                                 'description': request.form['description'],
-                                 'category_id': request.form['category_id']})
+                    update_item(item, request.form['category_id'],
+                                request.form['name'],
+                                request.form['description'])
                     flash('item successfully edited')
                     return redirect(url_for('show_category',
                                             category_name=item.category.name))
@@ -569,7 +572,9 @@ def delete_item(category_name, item_name):
 
 
 # API routing
+@csrf.exempt
 @app.route('/api/catalog', methods=['GET', 'POST'])
+@verify_token
 def api_catalog():
     if request.method == 'GET':
         categories = db_session.query(Category).all()
@@ -585,7 +590,8 @@ def api_catalog():
         try:
             item = create_item(request.args.get('category_id'),
                                request.args.get('name'),
-                               request.args.get('description'))
+                               request.args.get('description'),
+                               g.user.id)
             return jsonify(Item=item.serialize)
         except IntegrityError as e:
             db_session.rollback()
@@ -603,8 +609,10 @@ def api_category(category_name):
         return error_message('category', category_name, 'api')
 
 
+@csrf.exempt
 @app.route('/api/catalog/<category_name>/<item_name>',
            methods=['GET', 'PUT', 'DELETE'])
+@verify_token
 def api_item(category_name, item_name):
     category = (db_session.query(Category)
                 .filter_by(name=category_name)
@@ -618,21 +626,24 @@ def api_item(category_name, item_name):
                 # Return a json corresponding to the item.
                 return jsonify(Item=item.serialize)
             elif request.method == 'PUT':
+                if g.user.id != item.user_id:
+                    return jsonify(Error='You are not authorized to edit this item')
                 '''PUT method to update an item: try to update the item
                    in the database with the values passed in the request.
                    If item is successfully updated, return a json
                    corresponding to the item. If not, rollback the changes
                    and return a json with an error message.'''
                 try:
-                    update_item(item,
-                                {'name': request.args['name'],
-                                 'description': request.args['description'],
-                                 'category_id': request.args['category_id']})
+                    update_item(item, request.args['category_id'],
+                                request.args['name'],
+                                request.args['description'])
                     return jsonify(Item=item.serialize)
                 except IntegrityError as e:
                     db_session.rollback()
                     return jsonify(Error=e.args[0]), 400
             elif request.method == 'DELETE':
+                if g.user.id != item.user_id:
+                    return jsonify(Error='You are not authorized to delete this item')
                 # delete item from database
                 db_session.delete(item)
                 db_session.commit()

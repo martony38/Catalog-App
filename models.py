@@ -5,24 +5,35 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import relationship
 
-# Library to encrypt passwords
-from passlib.apps import custom_app_context
+from hashlib import sha256
+from os import urandom
+from itsdangerous import(TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
 
 Base = declarative_base()
 
+# Secret key to create and verify tokens
+secret_key = sha256(urandom(1024)).hexdigest()
 
 class User(Base):
     __tablename__ = 'user'
     id = Column(Integer, primary_key=True)
-    email = Column(String, index=True)
-    password_hash = Column(String(64))
+    email = Column(String, CheckConstraint('email!=""'), index=True, unique=True, nullable=False)
 
-    def hash_password(self, password):
-        self.password_hash = custom_app_context.encrypt(password)
+    def generate_auth_token(self, expiration = 600):
+        s = Serializer(secret_key, expires_in = expiration)
+        return s.dumps({'id': self.id})
 
-    def verify_password(self, password):
-        return custom_app_context.verify(password, self.password_hash)
-
+    @staticmethod
+    def verify_auth_token(token):
+        s = Serializer(secret_key)
+        try:
+            data = s.loads(token)
+        except SignatureExpired:
+            return None
+        except BadSignature:
+            return None
+        user_id = data['id']
+        return user_id
 
 class Category(Base):
     __tablename__ = 'category'
@@ -41,8 +52,10 @@ class Item(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, CheckConstraint('name!=""'), nullable=False, index=True)
     description = Column(String)
-    category_id = Column(Integer, ForeignKey('category.id'), CheckConstraint('category_id!=""'), nullable=False,)
+    category_id = Column(Integer, ForeignKey('category.id'), CheckConstraint('category_id!=""'), nullable=False)
     category = relationship(Category)
+    user_id = Column(Integer, ForeignKey('user.id'), CheckConstraint('user_id!=""'), nullable=False)
+    user = relationship(User)
     __table_args__ = (UniqueConstraint('name','category_id'), )
 
     @property
