@@ -14,6 +14,7 @@
         <option value='{{category.id}}'>{{category.name}}</option>
       {% endfor %}
     </select>
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
     <input type='submit' value='Create'>
   </form>
   <a href = '{{url_for('show_catalog')}}'> Cancel </a>

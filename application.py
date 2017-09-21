@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from models import Base, User, Item, Category
 
 from flask import Flask, request, render_template, redirect, url_for, flash
-from flask import jsonify, g, session, make_response
+from flask import jsonify, g, session, make_response, abort
 
 import hashlib, os
 
@@ -61,6 +61,25 @@ def redirect_user_if_already_logged_in(f):
     return decorated_function
 
 
+# Code for CSRF protection taken from flask snippet available at:
+# http://flask.pocoo.org/snippets/3/
+@app.before_request
+def csrf_protect():
+    if request.method == "POST" or request.method == "PUT" or request.method == "DELETE":
+        token = session.pop('_csrf_token', None)
+        if not token or token != request.form.get('_csrf_token'):
+            abort(400)
+
+
+def generate_csrf_token():
+    if '_csrf_token' not in session:
+        session['_csrf_token'] = hashlib.sha256(os.urandom(1024)).hexdigest()
+    return session['_csrf_token']
+
+
+app.jinja_env.globals['csrf_token'] = generate_csrf_token
+
+
 @app.route('/login')
 def show_login():
     return render_template('login.html')
@@ -85,6 +104,8 @@ def clear_session():
         del session['resource_owner_secret']
     if 'state' in session:
         del session['state']
+    if '_csrf_token' in session:
+        del session['_csrf_token']
 
 
 @app.route('/logout')
@@ -323,6 +344,8 @@ def login_or_register_user(provider, email):
     session['provider'] = provider
     session['user_id'] = user.id
     session['email'] = user.email
+    # Create a csrf token to protect crud operations.
+    generate_csrf_token()
 
 
 @auth.verify_password
@@ -495,8 +518,7 @@ def edit_item(category_name, item_name):
                                         item_name=item.name))
             if request.method == 'GET':
                 categories = db_session.query(Category).all()
-                return render_template('edit_item.html',
-                                       item=item,
+                return render_template('edit_item.html', item=item,
                                        categories=categories)
             elif request.method == 'POST':
                 try:
@@ -544,9 +566,8 @@ def delete_item(category_name, item_name):
                                         item_name=item.name))
             if request.method == 'GET':
                 categories = db_session.query(Category).all()
-                return render_template('delete_item.html',
-                                       categories=categories,
-                                       item=item)
+                return render_template('delete_item.html', item=item,
+                                       categories=categories)
             elif request.method == 'POST':
                 category = item.category
                 db_session.delete(item)
