@@ -61,14 +61,27 @@ def redirect_user_if_already_logged_in(f):
     return decorated_function
 
 
-# Code for CSRF protection taken from flask snippet available at:
+# Code for CSRF protection inspired from flask snippet available at:
 # http://flask.pocoo.org/snippets/3/
 @app.before_request
 def csrf_protect():
-    if request.method == "POST" or request.method == "PUT" or request.method == "DELETE":
+    if request.method in ['POST', 'PUT', 'DELETE']:
         token = session.pop('_csrf_token', None)
-        if not token or token != request.form.get('_csrf_token'):
-            abort(400)
+
+        # If request comes from web UI it should include a CSRF token.
+        if token:
+            # Check CSRF token
+            if token != request.form.get('_csrf_token'):
+                abort(400)
+
+            # Check Referer header as extra security
+            if 'http://localhost:5000/' not in request.headers['Referer']:
+                abort(400)
+
+        # If it is an API request, there is no CSRF token.
+        else:
+            # TODO: check API token
+            pass
 
 
 def generate_csrf_token():
