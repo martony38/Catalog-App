@@ -14,12 +14,10 @@ from models import Base, User, Item, Category
 from flask import Flask, request, render_template, redirect, url_for, flash
 from flask import jsonify, g, session, make_response, abort
 
-import hashlib, os
-
-import sys
+from hashlib import sha256
+from os import urandom, environ
 
 from functools import wraps
-
 
 # Connect to database
 engine = create_engine('sqlite:///catalog.db')
@@ -30,7 +28,7 @@ db_session = DBSession()
 # For development and testing purposes, enable oauth2 to work without ssl so
 # that the fetch_token method from requests_oauthlib do not raise:
 # oauthlib.oauth2.rfc6749.errors.InsecureTransportError
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 app = Flask(__name__)
 
@@ -171,7 +169,7 @@ def get_api_auth_token():
     return render_template('api_token.html', token=token.decode('ascii'),)
 
 
-@app.route('/login' methods = ['GET'])
+@app.route('/login', methods = ['GET'])
 def show_login():
     return render_template('login.html')
 
@@ -282,7 +280,7 @@ def oauth2_callback(provider):
 def oauth1_login(provider):
     # Create a state token to prevent request forgery.
     # Store it in session for later validation.
-    state = hashlib.sha256(os.urandom(1024)).hexdigest()
+    state = sha256(urandom(1024)).hexdigest()
     session['state'] = state
 
     client_key, client_secret = get_oauth_credentials(provider)
