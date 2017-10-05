@@ -63,7 +63,7 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            flash('Please login first')
+            flash('Please login first', 'alert-primary')
             return redirect(url_for('show_login'))
         return f(*args, **kwargs)
     return decorated_function
@@ -74,7 +74,7 @@ def redirect_user_if_already_logged_in(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' in session:
-            flash('You are already logged in')
+            flash('You are already logged in', 'alert-primary')
             return redirect(url_for('show_catalog'))
         return f(*args, **kwargs)
     return decorated_function
@@ -177,7 +177,7 @@ def show_login():
 @app.route('/logout')
 def disconnect():
     clear_session()
-    flash('You have been logged out')
+    flash('You have been logged out', 'alert-success')
     return redirect(url_for('show_catalog'))
 
 
@@ -205,7 +205,8 @@ def oauth2_login(provider):
         auth_base_url = 'https://www.linkedin.com/oauth/v2/authorization'
 
     else:
-        flash('You can not login with this provider: {}'.format(provider))
+        flash('You can not login with this provider: {}'.format(provider),
+              'alert-danger')
         return redirect(url_for('show_login'))
 
     oauth = OAuth2Session(client_id, redirect_uri=redirect_uri,
@@ -243,7 +244,8 @@ def oauth2_callback(provider):
 
     # Flash error message and redirect user if an unknown provider is used.
     else:
-        flash('You can not login with this provider: {}'.format(provider))
+        flash('You can not login with this provider: {}'.format(provider),
+              'alert-danger')
         return redirect(url_for('show_login'))
 
     oauth = OAuth2Session(client_id, state=session['oauth_state'],
@@ -268,7 +270,8 @@ def oauth2_callback(provider):
     except:
         # If either access token or user info are not obtained from OAuth
         # provider, flash error message and redirect to login page.
-        flash('error: could not obtain your info from {}'.format(provider))
+        flash('error: could not obtain your info from {}'.format(provider),
+              'alert-danger')
         return redirect(url_for('show_login'))
 
     login_or_register_user(provider, email)
@@ -310,11 +313,12 @@ def oauth1_login(provider):
             auth_url = twitter.authorization_url(auth_base_url)
             return redirect(auth_url)
         else:
-            flash('error while requesting token to Twitter')
+            flash('error while requesting token to Twitter', 'alert-danger')
             return redirect(url_for('show_login'))
 
     else:
-        flash('You can not login with this provider: {}'.format(provider))
+        flash('You can not login with this provider: {}'.format(provider),
+              'alert-danger')
         return redirect(url_for('show_login'))
 
 
@@ -354,7 +358,7 @@ def oauth1_callback(provider):
                 resource_owner_key = credentials.get('oauth_token')
                 resource_owner_secret = credentials.get('oauth_token_secret')
             except:
-                flash('error: could not get access token')
+                flash('error: could not get access token', 'alert-danger')
                 return redirect(url_for('show_login'))
 
             # Set up OAuth to Access user info.
@@ -373,14 +377,17 @@ def oauth1_callback(provider):
             except:
                 # If no email is obtained from OAuth provider, flash error
                 # message and redirect to login page.
-                flash('error: could not obtain email from {}'.format(provider))
+                flash('error: could not obtain email from {}'.format(provider),
+                      'alert-danger')
                 return redirect(url_for('show_login'))
         else:
-            flash('error: no token or wrong token received from provider')
+            flash('error: no token or wrong token received from provider',
+                  'alert-danger')
             return redirect(url_for('show_login'))
 
     else:
-        flash('You can not login with this provider: {}'.format(provider))
+        flash('You can not login with this provider: {}'.format(provider),
+              'alert-danger')
         return redirect(url_for('show_login'))
 
     login_or_register_user(provider, email)
@@ -391,9 +398,9 @@ def oauth1_callback(provider):
 @app.route('/catalog', methods=['GET'])
 def show_catalog():
     '''Display the catalog page'''
-    categories = db_session.query(Category).all()
+    categories = db_session.query(Category).order_by('name').all()
     latest_items = (db_session.query(Item)
-                    .order_by(Item.id.desc()).limit(10).all())
+                    .order_by(Item.id.desc()).limit(9).all())
     return render_template('catalog.html',
                            categories=categories,
                            latest_items=latest_items)
@@ -408,14 +415,16 @@ def show_category(category_name):
     category = (db_session.query(Category)
                 .filter_by(name=category_name).one_or_none())
     if category:
-        items = db_session.query(Item).filter_by(category_id=category.id).all()
-        categories = db_session.query(Category).all()
+        items = (db_session.query(Item).filter_by(category_id=category.id)
+                 .order_by('name').all())
+        categories = db_session.query(Category).order_by('name').all()
         return render_template('show_category.html',
                                categories=categories,
                                category=category,
                                items=items)
     else:
-        flash(error_message('category', category_name, 'browser'))
+        flash(error_message('category', category_name, 'browser'),
+              'alert-danger')
         return redirect(url_for('show_catalog'))
 
 
@@ -432,16 +441,17 @@ def show_item(category_name, item_name):
                 .filter_by(name=item_name, category_id=category.id)
                 .one_or_none())
         if item:
-            categories = db_session.query(Category).all()
+            categories = db_session.query(Category).order_by('name').all()
             return render_template('show_item.html',
                                    categories=categories,
                                    item=item)
         else:
-            flash(error_message('item', item_name, 'browser'))
+            flash(error_message('item', item_name, 'browser'), 'alert-danger')
             return redirect(url_for('show_category',
                                     category_name=category.name))
     else:
-        flash(error_message('category', category_name, 'browser'))
+        flash(error_message('category', category_name, 'browser'),
+              'alert-danger')
         return redirect(url_for('show_catalog'))
 
 
@@ -455,7 +465,6 @@ def create_new_item():
        item category page. If not, rollback the changes, flash an error
        message, and display the page to create a new item'''
     if request.method == 'POST':
-        debug()
         category = db_session.query(Category).get(request.form['category_id'])
         if category:
             try:
@@ -463,17 +472,18 @@ def create_new_item():
                             request.form['name'],
                             request.form['description'],
                             session['user_id'])
-                flash('item successfully created')
+                flash('item successfully created', 'alert-success')
                 return redirect(url_for('show_category',
                                         category_name=category.name))
             except IntegrityError as e:
                 db_session.rollback()
-                flash('item not created due to error: ' + e.args[0])
+                flash('item not created due to error: ' + e.args[0],
+                      'alert-danger')
         else:
             flash(error_message('category with id ',
                                 request.form['category_id'],
-                                'browser'))
-    categories = db_session.query(Category).all()
+                                'browser'), 'alert-danger')
+    categories = db_session.query(Category).order_by('name').all()
     return render_template('create_new_item.html', categories=categories)
 
 
@@ -498,12 +508,13 @@ def edit_item(category_name, item_name):
                 .one_or_none())
         if item:
             if session['user_id'] != item.user_id:
-                flash('You are not authorized to edit this item')
+                flash('You are not authorized to edit this item',
+                      'alert-danger')
                 return redirect(url_for('show_item',
                                         category_name=category.name,
                                         item_name=item.name))
             if request.method == 'GET':
-                categories = db_session.query(Category).all()
+                categories = db_session.query(Category).order_by('name').all()
                 return render_template('edit_item.html', item=item,
                                        categories=categories)
             elif request.method == 'POST':
@@ -511,18 +522,20 @@ def edit_item(category_name, item_name):
                     update_item(item, request.form['category_id'],
                                 request.form['name'],
                                 request.form['description'])
-                    flash('item successfully edited')
+                    flash('item successfully edited', 'alert-success')
                     return redirect(url_for('show_category',
                                             category_name=item.category.name))
                 except IntegrityError as e:
                     db_session.rollback()
-                    flash('item not edited due to error: ' + e.args[0])
+                    flash('item not edited due to error: ' + e.args[0],
+                          'alert-danger')
         else:
-            flash(error_message('item', item_name, 'browser'))
+            flash(error_message('item', item_name, 'browser'), 'alert-danger')
             return redirect(url_for('show_category',
                                     category_name=category.name))
     else:
-        flash(error_message('category', category_name, 'browser'))
+        flash(error_message('category', category_name, 'browser'),
+              'alert-danger')
         return redirect(url_for('show_catalog'))
 
 
@@ -545,27 +558,29 @@ def delete_item(category_name, item_name):
                 .one_or_none())
         if item:
             if session['user_id'] != item.user_id:
-                flash('You are not authorized to delete this item')
+                flash('You are not authorized to delete this item',
+                      'alert-danger')
                 return redirect(url_for('show_item',
                                         category_name=category.name,
                                         item_name=item.name))
             if request.method == 'GET':
-                categories = db_session.query(Category).all()
+                categories = db_session.query(Category).order_by('name').all()
                 return render_template('delete_item.html', item=item,
                                        categories=categories)
             elif request.method == 'POST':
                 category = item.category
                 db_session.delete(item)
                 db_session.commit()
-                flash('item successfully deleted')
+                flash('item successfully deleted', 'alert-success')
                 return redirect(url_for('show_category',
                                         category_name=category.name))
         else:
-            flash(error_message('item', item_name, 'browser'))
+            flash(error_message('item', item_name, 'browser'), 'alert-danger')
             return redirect(url_for('show_category',
                                     category_name=category.name))
     else:
-        flash(error_message('category', category_name, 'browser'))
+        flash(error_message('category', category_name, 'browser'),
+              'alert-danger')
         return redirect(url_for('show_catalog'))
 
 
@@ -575,7 +590,7 @@ def delete_item(category_name, item_name):
 @verify_token
 def api_catalog():
     if request.method == 'GET':
-        categories = db_session.query(Category).all()
+        categories = db_session.query(Category).order_by('name').all()
         return jsonify(catalog={'categories': [get_category_json(category)
                                                for category in categories]})
 
@@ -625,7 +640,8 @@ def api_item(category_name, item_name):
                 return jsonify(Item=item.serialize)
             elif request.method == 'PUT':
                 if g.user.id != item.user_id:
-                    return jsonify(Error='You are not authorized to edit this item')
+                    return jsonify(
+                        Error='You are not authorized to edit this item')
                 '''PUT method to update an item: try to update the item
                    in the database with the values passed in the request.
                    If item is successfully updated, return a json
@@ -641,7 +657,8 @@ def api_item(category_name, item_name):
                     return jsonify(Error=e.args[0]), 400
             elif request.method == 'DELETE':
                 if g.user.id != item.user_id:
-                    return jsonify(Error='You are not authorized to delete this item')
+                    return jsonify(
+                        Error='You are not authorized to delete this item')
                 # delete item from database
                 db_session.delete(item)
                 db_session.commit()
@@ -654,7 +671,7 @@ def api_item(category_name, item_name):
 
 @app.errorhandler(404)
 def not_found(message):
-    flash(message)
+    flash(message, 'alert-danger')
     return render_template('error.html'), 404
 
 

@@ -1,11 +1,17 @@
 {% extends "layout.html" %}
 {% block body %}
-  <h1>This is the home page</h1>
-  <p>Do you want to <a href = '{{url_for('create_new_item')}}'>Add Item</a>
-
-  Latest items:
-
-  {% for item in latest_items %}
-    <a href = '{{url_for('show_item', category_name = item.category.name, item_name = item.name)}}'>{{item.name}}</a>
-  {% endfor %}
+  {% include 'sidebar.html' %}
+  <main class="col-sm-9 ml-sm-auto col-md-10 pt-3">
+    {% include 'flash_messages.html' %}
+    <h1>Latest Items</h1>
+    <div class="row">
+      {% for items in latest_items|slice(3) %}
+        <div class="col-md-6 col-lg-4">
+        {% for item in items %}
+          {% include 'latest_item.html' %}
+        {% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+  </main>
 {% endblock %}

@@ -1,24 +1,42 @@
 {% extends "layout.html" %}
 {% block body %}
-  <h1>This is the page to edit item: {{item.name}}</h1>
-
-  <form action = "{{ url_for('edit_item', item_name = item.name, category_name = item.category.name)}}" method = 'post'>
-    Name:
-    <input required type ='text' name ='name' placeholder = '{{item.name }}'>
-    Description:
-    <input type ='textarea' name ='description' placeholder = '{{item.description }}'>
-    Category:
-    <select required name ="category_id">
-      {% for category in categories %}
-        {% if category.id == item.category_id %}
-          <option value ='{{category.id}}' selected>{{category.name}}</option>
-        {% else %}
-          <option value ='{{category.id}}'>{{category.name}}</option>
-        {% endif%}
-      {% endfor %}
-    </select>
-    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-    <input type = 'submit' value = 'Edit'>
-  </form>
-  <a href = '{{url_for('show_item', category_name = item.category.name, item_name = item.name)}}'> Cancel </a>
+  {% include 'sidebar.html' %}
+  <main class="col-sm-9 ml-sm-auto col-md-10 pt-3">
+    {% include 'flash_messages.html' %}
+    <div class="row justify-content-center">
+      <div class="col-sm-12">
+        <h1>Edit Item</h1>
+        <div class="card">
+          <form action="{{ url_for('edit_item', item_name = item.name, category_name = item.category.name) }}" method="post">
+            <img class="card-img-top" src="http://via.placeholder.com/350x50" alt="{{ item.name }}">
+            <div class="card-body">
+              <div class="form-group">
+                <label for="name">Name</label>
+                <input required class="form-control" id="name" type="text" name="name" placeholder="{{ item.name }}">
+              </div>
+              <div class="form-group">
+                <label for="description">Description</label>
+                <textarea class="form-control" id="description" type="textarea" name="description" placeholder="{{ item.description }}" rows="3"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="category">Category</label>
+                <select required class="form-control" id="category" name="category_id">
+                  {% for category in categories %}
+                    {% if category.id == item.category_id %}
+                      <option value="{{ category.id }}" selected>{{category.name}}</option>
+                    {% else %}
+                      <option value="{{ category.id }}">{{category.name}}</option>
+                    {% endif%}
+                  {% endfor %}
+                </select>
+              </div>
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-danger">Submit</button>
+              <a class="btn btn-primary" href="{{ url_for('show_item', category_name = item.category.name, item_name = item.name) }}"> Cancel </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </main>
 {% endblock %}

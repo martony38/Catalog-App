@@ -1,0 +1,190 @@
+.navbar-text {
+    padding-right: .5rem;
+}
+
+.card {
+    margin-top: 10px;
+    margin-bottom: 25px;
+}
+
+.token {
+    overflow: scroll;
+}
+
+
+/*
+ * Login page
+ */
+
+.sign-in-btn {
+    border: none;
+    color: white;
+    width: 370px;
+    height: 80px;
+    font-family: arial;
+    font-size: 24px;
+    line-height: 63px;
+    background-repeat: no-repeat;
+    box-shadow: 10px 10px 74px -16px rgba(0,0,0,0.75);
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.sign-in-btn:hover {
+    color: white;
+}
+
+.google {
+    background-image: url('../img/google.png');
+    background-color: rgb(66,133,244);
+    background-size: 78px;
+    padding-right: 32px;
+}
+
+.google:hover {
+    background-color: rgb(51,103,214);
+}
+
+.google:focus {
+    background-color: rgb(51,103,214);
+}
+
+.facebook {
+    background-image: url('../img/facebook.png');
+    background-color: rgb(66,103,178);
+    background-position: 15px 14px;
+    background-size: 50px;
+    padding-right: 22px;
+}
+
+.facebook:hover {
+    background-color: rgb(61,94,161);
+}
+
+.facebook:focus {
+    background-color: rgb(61,94,161);
+}
+
+.github {
+    background-image: url('../img/github.png');
+    background-color: rgb(135,194,102);
+    background-position: 11px 9px;
+    padding-right: 35px;
+}
+
+.github:hover {
+    background-color: rgb(96,175,69);
+}
+
+.github:focus {
+    background-color: rgb(96,175,69);
+}
+
+.linkedin {
+    background-image: url('../img/linkedin.png');
+    background-color: rgb(47,119,176);
+    background-position: 9px 6px;
+    padding-right: 25px;
+}
+
+.linkedin:hover {
+    background-color: rgb(39,96,143);
+}
+
+.linkedin:focus {
+    background-color: rgb(39,96,143);
+}
+
+.twitter {
+    background-image: url('../img/twitter.png');
+    background-color: rgb(105,171,233);
+    background-position: 15px 11px;
+    background-size: 60px;
+    padding-right: 39px;
+}
+
+.twitter:hover {
+    background-color: rgb(67,148,218);
+}
+
+.twitter:focus {
+    background-color: rgb(67,148,218);
+}
+
+@media (max-width: 399px) {
+    .sign-in-btn {
+        width: 290px;
+        height: 63px;
+        font-size: 18px;
+        line-height: 48px;
+    }
+    .google {
+        background-size: 61px;
+    }
+    .facebook {
+        background-position: 12px 12px;
+        background-size: 40px;
+    }
+    .github {
+        background-position: 8px 7px;
+        background-size: 50px;
+    }
+    .linkedin {
+        background-size: 50px;
+    }
+    .twitter {
+        background-position: 13px 7px;
+        background-size: 50px;
+    }
+}
+
+@media (max-width: 319px) {
+    .sign-in-btn {
+        width: 210px;
+        height: 45px;
+        font-size: 12px;
+        line-height: 28px;
+    }
+    .google {
+        background-size: 43px;
+        background-position: 1px;
+        padding-right: 26px;
+    }
+    .facebook {
+        background-position: 9px 8px;
+        background-size: 29px;
+    }
+    .github {
+        background-position: 6px 5px;
+        background-size: 36px;
+        padding-right: 29px;
+    }
+    .linkedin {
+        background-size: 36px;
+        background-position: 6px 4px;
+    }
+    .twitter {
+        background-position: 8px 4px;
+        background-size: 36px;
+        padding-right: 31px;
+    }
+}
+
+
+/*
+ * Sidebar
+ */
+
+.sidebar {
+    padding-top: 1rem;
+}
+
+/* Collapse sidebar option and collapse button only for mobile */
+@media (min-width: 576px) {
+  .sidebar > button {
+    display: none;
+  }
+  .sidebar > .collapse {
+    display: block;
+  }
+}

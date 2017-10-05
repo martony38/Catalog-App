@@ -1,11 +1,13 @@
 {% extends "layout.html" %}
 {% block body %}
-<div class='login'>
-    <a class='google sign-in-btn' href='{{url_for('oauth2_login', provider = 'google')}}'></a>
-    <a class='facebook sign-in-btn' href='{{url_for('oauth2_login', provider = 'facebook')}}'></a>
-    <a class='github sign-in-btn' href='{{url_for('oauth2_login', provider = 'github')}}'>sign in with GitHub</a>
-    <a class='linkedin sign-in-btn' href='{{url_for('oauth2_login', provider = 'linkedin')}}'>sign in with Linkedin</a>
-    <a class='twitter sign-in-btn' href='{{url_for('oauth1_login', provider = 'twitter')}}'>sign in with Twitter</a>
-
-</div>
+  <main class="col pt-3">
+    {% include 'flash_messages.html' %}
+    <div class="d-flex flex-column align-items-center">
+      <a class="google btn sign-in-btn text-right font-weight-bold" href="{{url_for('oauth2_login', provider = 'google')}}">Sign in with Google</a>
+      <a class="facebook btn sign-in-btn text-right font-weight-bold" href="{{url_for('oauth2_login', provider = 'facebook')}}">Sign in with Facebook</a>
+      <a class="github btn sign-in-btn text-right font-weight-bold" href="{{url_for('oauth2_login', provider = 'github')}}">Sign in with GitHub</a>
+      <a class="linkedin btn sign-in-btn text-right font-weight-bold" href="{{url_for('oauth2_login', provider = 'linkedin')}}">Sign in with Linkedin</a>
+      <a class="twitter btn sign-in-btn text-right font-weight-bold" href="{{url_for('oauth1_login', provider = 'twitter')}}">Sign in with Twitter</a>
+    </div>
+  </main>
 {% endblock %}

@@ -1,21 +1,39 @@
 {% extends "layout.html" %}
 {% block body %}
-  <h1>This is the page to create a new item</h1>
-
-  <form action="{{ url_for('create_new_item')}}" method = 'post'>
-    Name:
-    <input required type ='text' name='name' placeholder = 'name'>
-    Description:
-    <input type ='textarea' name='description' placeholder = 'description'>
-    Category:
-    <select required name="category_id">
-      <option value="" selected>select category</option>
-      {% for category in categories %}
-        <option value='{{category.id}}'>{{category.name}}</option>
-      {% endfor %}
-    </select>
-    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-    <input type='submit' value='Create'>
-  </form>
-  <a href = '{{url_for('show_catalog')}}'> Cancel </a>
+  {% include 'sidebar.html' %}
+  <main class="col-sm-9 ml-sm-auto col-md-10 pt-3">
+    {% include 'flash_messages.html' %}
+    <div class="row justify-content-center">
+      <div class="col-sm-12">
+        <h1>Create New Item</h1>
+        <div class="card">
+          <form action="{{ url_for('create_new_item') }}" method="post">
+            <img class="card-img-top" src="http://via.placeholder.com/350x50" alt="new item">
+            <div class="card-body">
+              <div class="form-group">
+                <label for="name">Name</label>
+                <input required class="form-control" id="name" type="text" name="name" placeholder="name">
+              </div>
+              <div class="form-group">
+                <label for="description">Description</label>
+                <textarea class="form-control" id="description" type="textarea" name="description" placeholder="description" rows="3"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="category">Category</label>
+                <select required class="form-control" id="category" name="category_id">
+                  <option value="" selected>select category</option>
+                  {% for category in categories %}
+                      <option value="{{ category.id }}">{{ category.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-danger">Submit</button>
+              <a class="btn btn-primary" href="{{ url_for('show_catalog') }}"> Cancel </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </main>
 {% endblock %}

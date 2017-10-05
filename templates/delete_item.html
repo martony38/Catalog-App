@@ -1,10 +1,18 @@
 {% extends "layout.html" %}
 {% block body %}
-  <h1>This is the page to delete item: {{item.name}}</h1>
-
-  <form action="{{ url_for('delete_item', item_name = item.name, category_name = item.category.name)}}" method = 'post'>
-    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-    <input type='submit' value='Delete'>
-  </form>
-  <a href = '{{url_for('show_item', category_name = item.category.name, item_name = item.name)}}'> Cancel </a>
+  {% include 'sidebar.html' %}
+  <main class="col-sm-9 ml-sm-auto col-md-10 pt-3">
+    {% include 'flash_messages.html' %}
+    <div class="row">
+      <div class="col-sm-12 col-md-12">
+        <h1>Delete Item</h1>
+        <p>Are you sure you want to delete the item {{item.name}}?</p>
+        <form action="{{ url_for('delete_item', item_name = item.name, category_name = item.category.name)}}" method="post">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-danger">Confirm</button>
+          <a class="btn btn-primary" href="{{url_for('show_item', category_name = item.category.name, item_name = item.name)}}"> Cancel </a>
+        </form>
+      </div>
+    </div>
+  </main>
 {% endblock %}

@@ -1,0 +1,16 @@
+<div class="card">
+  <img class="card-img-top" src="http://via.placeholder.com/350x150" alt="{{ item.name }}">
+  <div class="card-body">
+    <h4 class="card-title">
+      {{ item.name }}
+    </h4>
+    <p class="card-text">
+      {{ item.description|truncate(100) }}
+    </p>
+      <a class="btn btn-dark btn-sm" href="{{ url_for('show_item', category_name = item.category.name, item_name = item.name) }}">More Info</a>
+    {% if session['user_id'] == item.user_id %}
+      <a class="btn btn-primary btn-sm" href="{{ url_for('edit_item', item_name = item.name, category_name = item.category.name) }}">Edit</a>
+      <a class="btn btn-danger btn-sm" href="{{ url_for('delete_item', item_name = item.name, category_name = item.category.name) }}">Delete</a>
+    {% endif %}
+  </div>
+</div>
