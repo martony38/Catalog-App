@@ -11,8 +11,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from models import Base, User, Item, Category
 
-from flask import Flask, request, render_template, redirect, url_for, flash
-from flask import jsonify, g, session, make_response, abort
+from flask import (Flask, request, render_template, redirect, url_for, flash,
+                   jsonify, g, session, make_response, abort)
 
 from hashlib import sha256
 from os import urandom, environ
@@ -37,7 +37,7 @@ csrf = SeaSurf(app)
 
 
 def debug():
-    assert app.debug == False
+    assert app.debug is False
 
 
 def verify_token(f):
@@ -46,7 +46,6 @@ def verify_token(f):
     def decorated_function(*args, **kwargs):
         if request.method in ['POST', 'PUT', 'DELETE']:
             user_id = User.verify_auth_token(request.headers['auth_token'])
-            print(request.headers['auth_token'])
             if user_id:
                 user = db_session.query(User).get(user_id)
                 if user:
@@ -110,10 +109,14 @@ def get_oauth_credentials(provider):
     if provider == 'twitter':
         client_id = secret_json['consumer_key']
         client_secret = secret_json['consumer_secret']
+        redirect_uri = url_for('oauth1_callback', provider=provider,
+                               _external=True)
     else:
         client_id = secret_json['client_id']
         client_secret = secret_json['client_secret']
-    return client_id, client_secret
+        redirect_uri = url_for('oauth2_callback', provider=provider,
+                               _external=True)
+    return client_id, client_secret, redirect_uri
 
 
 def login_or_register_user(provider, email):
@@ -153,7 +156,7 @@ def update_item(item, category_id, name, description):
 
 
 def get_category_json(category):
-    # API helper function that returns a json with all items from a category
+    '''Returns a json with all items from a category.'''
     items = db_session.query(Item).filter_by(category_id=category.id).all()
     category_json = category.serialize
     category_json['items'] = [item.serialize for item in items]
@@ -161,7 +164,7 @@ def get_category_json(category):
 
 
 # Get a token for a user with login credentials
-@app.route('/token', methods = ['GET'])
+@app.route('/token', methods=['GET'])
 @login_required
 def get_api_auth_token():
     user = db_session.query(User).get(session['user_id'])
@@ -169,7 +172,7 @@ def get_api_auth_token():
     return render_template('api_token.html', token=token.decode('ascii'),)
 
 
-@app.route('/login', methods = ['GET'])
+@app.route('/login', methods=['GET'])
 def show_login():
     return render_template('login.html')
 
@@ -185,9 +188,8 @@ def disconnect():
 @redirect_user_if_already_logged_in
 def oauth2_login(provider):
     # Configure variables for OAuth.
-    client_id, client_secret = get_oauth_credentials(provider)
-    redirect_uri = url_for('oauth2_callback', provider=provider,
-                               _external=True)
+    client_id, client_secret, redirect_uri = get_oauth_credentials(provider)
+
     if provider == 'google':
         scope = 'https://www.googleapis.com/auth/userinfo.email'
         auth_base_url = 'https://accounts.google.com/o/oauth2/v2/auth'
@@ -209,8 +211,7 @@ def oauth2_login(provider):
               'alert-danger')
         return redirect(url_for('show_login'))
 
-    oauth = OAuth2Session(client_id, redirect_uri=redirect_uri,
-                                 scope=scope)
+    oauth = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scope)
     auth_url, state = oauth.authorization_url(auth_base_url)
     session['oauth_state'] = state
     return redirect(auth_url)
@@ -220,27 +221,26 @@ def oauth2_login(provider):
 @redirect_user_if_already_logged_in
 def oauth2_callback(provider):
     # Configure variables for OAuth provider.
-    client_id, client_secret = get_oauth_credentials(provider)
-    redirect_uri = url_for('oauth2_callback', provider=provider, _external=True)
+    client_id, client_secret, redirect_uri = get_oauth_credentials(provider)
+    payload = {}
+
     if provider == 'google':
         token_url = 'https://www.googleapis.com/oauth2/v4/token'
         protected_url = 'https://www.googleapis.com/oauth2/v1/userinfo'
-        payload = {}
 
     elif provider == 'github':
         token_url = 'https://github.com/login/oauth/access_token'
         protected_url = 'https://api.github.com/user/emails'
-        payload = {}
 
     elif provider == 'facebook':
         token_url = 'https://graph.facebook.com/v2.10/oauth/access_token'
         protected_url = 'https://graph.facebook.com/v2.10/me'
-        payload = {'fields': 'email'}
+        payload['fields'] = 'email'
 
     elif provider == 'linkedin':
         token_url = 'https://www.linkedin.com/oauth/v2/accessToken'
         protected_url = 'https://api.linkedin.com/v1/people/~:(email-address)'
-        payload = {'format': 'json'}
+        payload['format'] = 'json'
 
     # Flash error message and redirect user if an unknown provider is used.
     else:
@@ -249,7 +249,7 @@ def oauth2_callback(provider):
         return redirect(url_for('show_login'))
 
     oauth = OAuth2Session(client_id, state=session['oauth_state'],
-                               redirect_uri=redirect_uri)
+                          redirect_uri=redirect_uri)
     try:
         # Fetch the access token
         oauth.fetch_token(token_url, client_secret=client_secret,
@@ -263,7 +263,7 @@ def oauth2_callback(provider):
             email = r.json()['emailAddress']
         elif provider == 'github':
             for email_item in r.json():
-                if email_item['primary'] == True:
+                if email_item['primary'] is True:
                     email = email_item['email']
         else:
             email = r.json()['email']
@@ -286,9 +286,8 @@ def oauth1_login(provider):
     state = sha256(urandom(1024)).hexdigest()
     session['state'] = state
 
-    client_key, client_secret = get_oauth_credentials(provider)
-
-    redirect_uri = url_for('oauth1_callback', provider=provider, _external=True)
+    # Configure variables for OAuth.
+    client_key, client_secret, redirect_uri = get_oauth_credentials(provider)
     payload = {'state': state}
     callback_req = PreparedRequest()
     callback_req.prepare_url(redirect_uri, payload)
@@ -298,7 +297,7 @@ def oauth1_login(provider):
         scope = 'https://www.googleapis.com/auth/userinfo.email'
         auth_base_url = 'https://accounts.google.com/o/oauth2/v2/auth'
         twitter = OAuth1Session(client_key, client_secret=client_secret,
-                                    callback_uri=callback_uri)
+                                callback_uri=callback_uri)
 
         # First step, fetch the request token.
         request_token_url = 'https://api.twitter.com/oauth/request_token'
@@ -322,7 +321,6 @@ def oauth1_login(provider):
         return redirect(url_for('show_login'))
 
 
-
 @app.route('/oauth1callback/<provider>')
 @redirect_user_if_already_logged_in
 def oauth1_callback(provider):
@@ -333,7 +331,8 @@ def oauth1_callback(provider):
         response.headers['Content-Type'] = 'application/json'
         return response
 
-    redirect_uri = url_for('oauth1_callback', provider=provider, _external=True)
+    redirect_uri = url_for('oauth1_callback', provider=provider,
+                           _external=True)
     payload = {'state': request.args.get('state')}
     callback_req = PreparedRequest()
     callback_req.prepare_url(redirect_uri, payload)
@@ -348,15 +347,17 @@ def oauth1_callback(provider):
         if request.args.get('oauth_token') == session['resource_owner_key']:
             # Convert the request token to an access token.
             access_token_url = 'https://api.twitter.com/oauth/access_token'
-            twitter = OAuth1Session(client_key,
-                      client_secret=client_secret,
-                      resource_owner_key=session['resource_owner_key'],
-                      resource_owner_secret=session['resource_owner_secret'],
-                      verifier=request.args.get('oauth_verifier'))
+            resource_owner_key = session['resource_owner_key']
+            resource_owner_sec = session['resource_owner_secret']
+            verifier = request.args.get('oauth_verifier')
+            twitter = OAuth1Session(client_key, client_secret=client_secret,
+                                    resource_owner_key=resource_owner_key,
+                                    resource_owner_secret=resource_owner_sec,
+                                    verifier=verifier)
             try:
                 credentials = twitter.fetch_access_token(access_token_url)
                 resource_owner_key = credentials.get('oauth_token')
-                resource_owner_secret = credentials.get('oauth_token_secret')
+                resource_owner_sec = credentials.get('oauth_token_secret')
             except:
                 flash('error: could not get access token', 'alert-danger')
                 return redirect(url_for('show_login'))
@@ -365,10 +366,9 @@ def oauth1_callback(provider):
             protected_url = ('https://api.twitter.com/1.1/account/'
                              'verify_credentials.json')
             payload = {'include_email': 'true'}
-            twitter = OAuth1Session(client_key,
-                      client_secret=client_secret,
-                      resource_owner_key=resource_owner_key,
-                      resource_owner_secret=resource_owner_secret)
+            twitter = OAuth1Session(client_key, client_secret=client_secret,
+                                    resource_owner_key=resource_owner_key,
+                                    resource_owner_secret=resource_owner_sec)
 
             # Fetch the user email from provider.
             try:
