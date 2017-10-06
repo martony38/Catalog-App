@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from models import Base, User, Item, Category
 
 from flask import (Flask, request, render_template, redirect, url_for, flash,
-                   jsonify, g, session, make_response, abort)
+                   jsonify, g, session)
 
 from hashlib import sha256
 from os import urandom, environ
