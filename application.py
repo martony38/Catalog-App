@@ -96,8 +96,8 @@ def clear_session():
         del session['resource_owner_key']
     if 'resource_owner_secret' in session:
         del session['resource_owner_secret']
-    if 'state' in session:
-        del session['state']
+    if 'oauth_state' in session:
+        del session['oauth_state']
     if '_csrf_token' in session:
         del session['_csrf_token']
 
@@ -136,7 +136,7 @@ def error_message(model, model_name, request_type):
     if request_type == 'api':
         return (jsonify(Error=error_message), 404)
     elif request_type == 'browser':
-        return 'error: ' + error_message
+        return 'Error: ' + error_message
 
 
 def create_item(category_id, name, description, user_id):
@@ -220,7 +220,7 @@ def oauth2_login(provider):
 @app.route('/oauth2callback/<provider>')
 @redirect_user_if_already_logged_in
 def oauth2_callback(provider):
-    # Configure variables for OAuth provider.
+    # Get credentials for OAuth.
     client_id, client_secret, redirect_uri = get_oauth_credentials(provider)
     payload = {}
 
@@ -270,7 +270,7 @@ def oauth2_callback(provider):
     except:
         # If either access token or user info are not obtained from OAuth
         # provider, flash error message and redirect to login page.
-        flash('error: could not obtain your info from {}'.format(provider),
+        flash('Error: could not obtain your info from {}'.format(provider),
               'alert-danger')
         return redirect(url_for('show_login'))
 
@@ -284,10 +284,12 @@ def oauth1_login(provider):
     # Create a state token to prevent request forgery.
     # Store it in session for later validation.
     state = sha256(urandom(1024)).hexdigest()
-    session['state'] = state
+    session['oauth_state'] = state
 
-    # Configure variables for OAuth.
+    # Get credentials for OAuth.
     client_key, client_secret, redirect_uri = get_oauth_credentials(provider)
+
+    # Add state parameter to callback uri
     payload = {'state': state}
     callback_req = PreparedRequest()
     callback_req.prepare_url(redirect_uri, payload)
@@ -312,7 +314,7 @@ def oauth1_login(provider):
             auth_url = twitter.authorization_url(auth_base_url)
             return redirect(auth_url)
         else:
-            flash('error while requesting token to Twitter', 'alert-danger')
+            flash('Error while requesting token to Twitter', 'alert-danger')
             return redirect(url_for('show_login'))
 
     else:
@@ -326,20 +328,12 @@ def oauth1_login(provider):
 def oauth1_callback(provider):
     # Ensure that the request is not a forgery and that the user sending
     # this connect request is the expected user.
-    if request.args.get('state') != session['state']:
-        response = make_response(json.dumps('Invalid state parameter.'), 401)
-        response.headers['Content-Type'] = 'application/json'
-        return response
+    if request.args.get('state') != session['oauth_state']:
+        flash('Error: invalid state parameter', 'alert-danger')
+        return redirect(url_for('show_login'))
 
-    redirect_uri = url_for('oauth1_callback', provider=provider,
-                           _external=True)
-    payload = {'state': request.args.get('state')}
-    callback_req = PreparedRequest()
-    callback_req.prepare_url(redirect_uri, payload)
-    callback_uri = callback_req.url
-
-    # Get credentials
-    client_key, client_secret = get_oauth_credentials(provider)
+    # Get credentials for OAuth.
+    client_key, client_secret, redirect_uri = get_oauth_credentials(provider)
 
     if provider == 'twitter':
         # Verify that the token matches the request token received
@@ -359,7 +353,7 @@ def oauth1_callback(provider):
                 resource_owner_key = credentials.get('oauth_token')
                 resource_owner_sec = credentials.get('oauth_token_secret')
             except:
-                flash('error: could not get access token', 'alert-danger')
+                flash('Error: could not get access token', 'alert-danger')
                 return redirect(url_for('show_login'))
 
             # Set up OAuth to Access user info.
@@ -377,11 +371,11 @@ def oauth1_callback(provider):
             except:
                 # If no email is obtained from OAuth provider, flash error
                 # message and redirect to login page.
-                flash('error: could not obtain email from {}'.format(provider),
+                flash('Error: could not obtain email from {}'.format(provider),
                       'alert-danger')
                 return redirect(url_for('show_login'))
         else:
-            flash('error: no token or wrong token received from provider',
+            flash('Error: no token or wrong token received from provider',
                   'alert-danger')
             return redirect(url_for('show_login'))
 
@@ -477,7 +471,7 @@ def create_new_item():
                                         category_name=category.name))
             except IntegrityError as e:
                 db_session.rollback()
-                flash('item not created due to error: ' + e.args[0],
+                flash('Item not created due to error: ' + e.args[0],
                       'alert-danger')
         else:
             flash(error_message('category with id ',
@@ -527,7 +521,7 @@ def edit_item(category_name, item_name):
                                             category_name=item.category.name))
                 except IntegrityError as e:
                     db_session.rollback()
-                    flash('item not edited due to error: ' + e.args[0],
+                    flash('Item not edited due to error: ' + e.args[0],
                           'alert-danger')
         else:
             flash(error_message('item', item_name, 'browser'), 'alert-danger')
