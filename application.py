@@ -35,7 +35,8 @@ db_session = DBSession()
 environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = './static/img/uploads'
+app.config['UPLOAD_FOLDER'] = 'img/uploads/'
+app.config['DEFAULT_IMAGE'] = 'chasing-the-snow.jpg'
 
 ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
 
@@ -52,13 +53,29 @@ def verify_token(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if request.method in ['POST', 'PUT', 'DELETE']:
-            user_id = User.verify_auth_token(request.headers['Auth_Token'])
-            if user_id:
-                user = db_session.query(User).get(user_id)
-                if user:
-                    g.user = user
-                    return f(*args, **kwargs)
-            return jsonify(Error='wrong authorization token')
+            auth_header = request.headers.get('Authorization')
+
+            # Check that request contains authorization header
+            if not auth_header:
+                return jsonify(Error='Missing authorization credentials'), 401
+
+            auth_header = auth_header.split()
+
+            # Check that authorization header is of the correct type
+            if auth_header[0] != 'Bearer':
+                return jsonify(Error='Wrong authorization type'), 401
+
+            # Check authorization token
+            user_id = User.verify_auth_token(auth_header[1])
+            if not user_id:
+                return jsonify(Error='wrong authorization token'), 401
+
+            # Fetch user from database and assign it to the request context
+            user = db_session.query(User).get(user_id)
+            if user:
+                g.user = user
+                return f(*args, **kwargs)
+            return jsonify(Error='User id not found'), 404
         else:
             return f(*args, **kwargs)
     return decorated_function
@@ -151,32 +168,28 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def upload_file():
+def upload_file(file):
     # TODO: check file size
-    # Check if the post request has the file part
-    if 'image' in request.files:
-        file = request.files['image']
-
+    # Check there is a file
+    if file:
         # If user does not select file, browser also
         # submit a empty part without filename
         if file.filename != '':
-            if file and allowed_file(file.filename):
+            if allowed_file(file.filename):
                 filename = secure_filename(file.filename)
-                file.save(path.join(app.config['UPLOAD_FOLDER'], filename))
-                return url_for('static', filename= 'img/uploads/' + filename,
-                               _external=True)
+                file.save(path.join('./static/' + app.config['UPLOAD_FOLDER'],
+                                    filename))
+                return url_for('static',
+                               filename=(app.config['UPLOAD_FOLDER']+filename))
     return None
 
 
-def create_item(category_id, name, description, user_id, image_url):
-    # If no image is uploaded, add a random image from placeholder generator
+def create_item(category_id, name, description, user_id, image):
+    image_url = upload_file(image)
+    # If no image is uploaded, add a default image
     if not image_url:
-        placeholder_image_urls = ['http://lorempixel.com/400/200',
-                                  'https://placebear.com/400/200',
-                                  'http://fillmurray.com/400/200',
-                                  'http://www.placecage.com/400/200',
-                                  'http://www.placecage.com/c/400/200']
-        image_url = random.choice(placeholder_image_urls)
+        image_url = url_for('static', filename=(app.config['UPLOAD_FOLDER']
+                            +app.config['DEFAULT_IMAGE']))
 
     item = Item(name=name, description=description, category_id=category_id,
                 user_id=user_id, image_url=image_url)
@@ -185,10 +198,14 @@ def create_item(category_id, name, description, user_id, image_url):
     return item
 
 
-def update_item(item, category_id, name, description, image_url):
-    item.name = name
-    item.description = description
-    item.category_id = category_id
+def update_item(item, category_id, name, description, image):
+    if category_id and category_id !='':
+        item.category_id = category_id
+    if name and name != '':
+        item.name = name
+    if description and description != '':
+        item.description = description
+    image_url = upload_file(image)
     if image_url:
         item.image_url = image_url
     db_session.add(item)
@@ -499,15 +516,13 @@ def create_new_item():
        item category page. If not, rollback the changes, flash an error
        message, and display the page to create a new item'''
     if request.method == 'POST':
-        category = db_session.query(Category).get(request.form['category_id'])
+        category = (db_session.query(Category)
+                    .get(request.form.get('category_id')))
         if category:
             try:
-                image_url = upload_file()
-                create_item(category.id,
-                            request.form['name'],
-                            request.form['description'],
-                            session['user_id'],
-                            image_url)
+                create_item(category.id, request.form.get('name'),
+                            request.form.get('description'),
+                            session['user_id'], request.files.get('image'))
                 flash('item successfully created', 'alert-success')
                 return redirect(url_for('show_category',
                                         category_name=category.name))
@@ -517,7 +532,7 @@ def create_new_item():
                       'alert-danger')
         else:
             flash(error_message('category with id ',
-                                request.form['category_id'],
+                                request.form.get('category_id'),
                                 'browser'), 'alert-danger')
     categories = db_session.query(Category).order_by('name').all()
     return render_template('create_new_item.html', categories=categories)
@@ -555,11 +570,10 @@ def edit_item(category_name, item_name):
                                        categories=categories)
             elif request.method == 'POST':
                 try:
-                    image_url = upload_file()
-                    update_item(item, request.form['category_id'],
-                                request.form['name'],
-                                request.form['description'],
-                                image_url)
+                    update_item(item, request.form.get('category_id'),
+                                request.form.get('name'),
+                                request.form.get('description'),
+                                request.files.get('image'))
                     flash('item successfully edited', 'alert-success')
                     return redirect(url_for('show_category',
                                             category_name=item.category.name))
@@ -638,12 +652,15 @@ def api_catalog():
            successfully added to the database, return a json with success
            message. If not, rollback the changes and return a json with
            an error message.'''
+        category_id = (request.args.get('category_id')
+                       or request.form.get('category_id'))
+        name = request.args.get('name') or request.form.get('name')
+        description = (request.args.get('description')
+                       or request.form.get('description'))
+        image = request.files.get('image')
         try:
-            item = create_item(request.args.get('category_id'),
-                               request.args.get('name'),
-                               request.args.get('description'),
-                               g.user.id,
-                               None)
+            item = create_item(category_id, name, description, g.user.id,
+                               image)
             return jsonify(Item=item.serialize)
         except IntegrityError as e:
             db_session.rollback()
@@ -679,26 +696,29 @@ def api_item(category_name, item_name):
                 return jsonify(Item=item.serialize)
             elif request.method == 'PUT':
                 if g.user.id != item.user_id:
-                    return jsonify(
-                        Error='You are not authorized to edit this item')
+                    return jsonify(Error='You are not authorized to edit '
+                                   'this item'), 401
                 '''PUT method to update an item: try to update the item
                    in the database with the values passed in the request.
                    If item is successfully updated, return a json
                    corresponding to the item. If not, rollback the changes
                    and return a json with an error message.'''
+                category_id = (request.args.get('category_id')
+                               or request.form.get('category_id'))
+                name = request.args.get('name') or request.form.get('name')
+                description = (request.args.get('description')
+                               or request.form.get('description'))
+                image = request.files.get('image')
                 try:
-                    update_item(item, request.args['category_id'],
-                                request.args['name'],
-                                request.args['description'],
-                                None)
+                    update_item(item, category_id, name, description, image)
                     return jsonify(Item=item.serialize)
                 except IntegrityError as e:
                     db_session.rollback()
                     return jsonify(Error=e.args[0]), 400
             elif request.method == 'DELETE':
                 if g.user.id != item.user_id:
-                    return jsonify(
-                        Error='You are not authorized to delete this item')
+                    return jsonify(Error='You are not authorized to delete '
+                                   'this item'), 401
                 # Delete item from database
                 db_session.delete(item)
                 db_session.commit()
