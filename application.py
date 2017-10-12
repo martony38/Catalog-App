@@ -638,7 +638,7 @@ def delete_item(category_name, item_name):
 
 # API routing
 @csrf.exempt
-@app.route('/api/catalog', methods=['GET', 'POST'])
+@app.route('/api/v1/catalog', methods=['GET', 'POST'])
 @verify_token
 def api_catalog():
     if request.method == 'GET':
@@ -667,7 +667,7 @@ def api_catalog():
             return jsonify(Error=e.args[0]), 400
 
 
-@app.route('/api/catalog/<category_name>', methods=['GET'])
+@app.route('/api/v1/catalog/<category_name>', methods=['GET'])
 def api_category(category_name):
     category = (db_session.query(Category)
                 .filter_by(name=category_name)
@@ -679,7 +679,7 @@ def api_category(category_name):
 
 
 @csrf.exempt
-@app.route('/api/catalog/<category_name>/<item_name>',
+@app.route('/api/v1/catalog/<category_name>/<item_name>',
            methods=['GET', 'PUT', 'DELETE'])
 @verify_token
 def api_item(category_name, item_name):
