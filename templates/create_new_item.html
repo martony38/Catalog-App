@@ -1,15 +1,18 @@
 {% extends "layout.html" %}
 {% block body %}
   {% include 'sidebar.html' %}
-  <main class="col-sm-9 ml-sm-auto col-md-10 pt-3">
+  <main class="col-sm-9 ml-sm-auto col-lg-10 pt-3">
     {% include 'flash_messages.html' %}
     <div class="row justify-content-center">
       <div class="col-sm-12">
         <h1>Create New Item</h1>
-        <div class="card">
-          <form action="{{ url_for('create_new_item') }}" method="post">
-            <img class="card-img-top" src="http://via.placeholder.com/350x50" alt="new item">
+        <div class="card bg-light border-secondary">
+          <form action="{{ url_for('create_new_item') }}" method="post" enctype="multipart/form-data">
             <div class="card-body">
+              <div class="form-group">
+                <label for="UploadItemImage">Upload item image</label>
+                <input type="file" class="form-control-file" name="image" id="UploadItemImage">
+              </div>
               <div class="form-group">
                 <label for="name">Name</label>
                 <input required class="form-control" id="name" type="text" name="name" placeholder="name">

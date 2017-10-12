@@ -1,17 +1,20 @@
 {% extends "layout.html" %}
 {% block body %}
   {% include 'sidebar.html' %}
-  <main class="col-sm-9 ml-sm-auto col-md-10 pt-3">
+  <main class="col-sm-9 ml-sm-auto col-lg-10 pt-3">
     {% include 'flash_messages.html' %}
     <h1>Latest Items</h1>
     <div class="row">
-      {% for items in latest_items|slice(3) %}
-        <div class="col-md-6 col-lg-4">
-        {% for item in items %}
-          {% include 'latest_item.html' %}
+      <div class="col-12 card-items">
+        {% for item in latest_items %}
+          <div class="card mb-3 mr-3 bg-light border-secondary">
+            <div class="card-header">
+              Category: <a class="font-italic" href="{{ url_for('show_category', category_name = item.category.name) }}">{{ item.category.name }}</a>
+            </div>
+            {% include 'item_card.html' %}
+          </div>
         {% endfor %}
-        </div>
-      {% endfor %}
+    </div>
     </div>
   </main>
 {% endblock %}

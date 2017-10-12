@@ -15,9 +15,13 @@ from flask import (Flask, request, render_template, redirect, url_for, flash,
                    jsonify, g, session)
 
 from hashlib import sha256
-from os import urandom, environ
+from os import urandom, environ, path
 
 from functools import wraps
+
+from werkzeug.utils import secure_filename
+
+import random
 
 # Connect to database
 engine = create_engine('sqlite:///catalog.db')
@@ -31,6 +35,9 @@ db_session = DBSession()
 environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = './static/img/uploads'
+
+ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
 
 # Add CSRF protection using SeaSurf (http://flask-seasurf.readthedocs.io).
 csrf = SeaSurf(app)
@@ -45,7 +52,7 @@ def verify_token(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if request.method in ['POST', 'PUT', 'DELETE']:
-            user_id = User.verify_auth_token(request.headers['auth_token'])
+            user_id = User.verify_auth_token(request.headers['Auth_Token'])
             if user_id:
                 user = db_session.query(User).get(user_id)
                 if user:
@@ -139,18 +146,51 @@ def error_message(model, model_name, request_type):
         return 'Error: ' + error_message
 
 
-def create_item(category_id, name, description, user_id):
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def upload_file():
+    # TODO: check file size
+    # Check if the post request has the file part
+    if 'image' in request.files:
+        file = request.files['image']
+
+        # If user does not select file, browser also
+        # submit a empty part without filename
+        if file.filename != '':
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                file.save(path.join(app.config['UPLOAD_FOLDER'], filename))
+                return url_for('static', filename= 'img/uploads/' + filename,
+                               _external=True)
+    return None
+
+
+def create_item(category_id, name, description, user_id, image_url):
+    # If no image is uploaded, add a random image from placeholder generator
+    if not image_url:
+        placeholder_image_urls = ['http://lorempixel.com/400/200',
+                                  'https://placebear.com/400/200',
+                                  'http://fillmurray.com/400/200',
+                                  'http://www.placecage.com/400/200',
+                                  'http://www.placecage.com/c/400/200']
+        image_url = random.choice(placeholder_image_urls)
+
     item = Item(name=name, description=description, category_id=category_id,
-                user_id=user_id)
+                user_id=user_id, image_url=image_url)
     db_session.add(item)
     db_session.commit()
     return item
 
 
-def update_item(item, category_id, name, description):
+def update_item(item, category_id, name, description, image_url):
     item.name = name
     item.description = description
     item.category_id = category_id
+    if image_url:
+        item.image_url = image_url
     db_session.add(item)
     db_session.commit()
 
@@ -394,7 +434,7 @@ def show_catalog():
     '''Display the catalog page'''
     categories = db_session.query(Category).order_by('name').all()
     latest_items = (db_session.query(Item)
-                    .order_by(Item.id.desc()).limit(9).all())
+                    .order_by(Item.id.desc()).limit(12).all())
     return render_template('catalog.html',
                            categories=categories,
                            latest_items=latest_items)
@@ -462,10 +502,12 @@ def create_new_item():
         category = db_session.query(Category).get(request.form['category_id'])
         if category:
             try:
+                image_url = upload_file()
                 create_item(category.id,
                             request.form['name'],
                             request.form['description'],
-                            session['user_id'])
+                            session['user_id'],
+                            image_url)
                 flash('item successfully created', 'alert-success')
                 return redirect(url_for('show_category',
                                         category_name=category.name))
@@ -513,9 +555,11 @@ def edit_item(category_name, item_name):
                                        categories=categories)
             elif request.method == 'POST':
                 try:
+                    image_url = upload_file()
                     update_item(item, request.form['category_id'],
                                 request.form['name'],
-                                request.form['description'])
+                                request.form['description'],
+                                image_url)
                     flash('item successfully edited', 'alert-success')
                     return redirect(url_for('show_category',
                                             category_name=item.category.name))
@@ -598,7 +642,8 @@ def api_catalog():
             item = create_item(request.args.get('category_id'),
                                request.args.get('name'),
                                request.args.get('description'),
-                               g.user.id)
+                               g.user.id,
+                               None)
             return jsonify(Item=item.serialize)
         except IntegrityError as e:
             db_session.rollback()
@@ -644,7 +689,8 @@ def api_item(category_name, item_name):
                 try:
                     update_item(item, request.args['category_id'],
                                 request.args['name'],
-                                request.args['description'])
+                                request.args['description'],
+                                None)
                     return jsonify(Item=item.serialize)
                 except IntegrityError as e:
                     db_session.rollback()
@@ -653,7 +699,7 @@ def api_item(category_name, item_name):
                 if g.user.id != item.user_id:
                     return jsonify(
                         Error='You are not authorized to delete this item')
-                # delete item from database
+                # Delete item from database
                 db_session.delete(item)
                 db_session.commit()
                 return jsonify(Success='item deleted')

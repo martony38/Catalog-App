@@ -58,6 +58,7 @@ class Item(Base):
     name = Column(String, CheckConstraint('name!=""'), nullable=False,
                   index=True)
     description = Column(String)
+    image_url = Column(String)
     category_id = Column(Integer, ForeignKey('category.id'),
                          CheckConstraint('category_id!=""'), nullable=False)
     category = relationship(Category)

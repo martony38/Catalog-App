@@ -2,11 +2,6 @@
     padding-right: .5rem;
 }
 
-.card {
-    margin-top: 10px;
-    margin-bottom: 25px;
-}
-
 .token {
     overflow: scroll;
 }
@@ -25,7 +20,7 @@
     font-size: 24px;
     line-height: 63px;
     background-repeat: no-repeat;
-    box-shadow: 10px 10px 74px -16px rgba(0,0,0,0.75);
+    box-shadow: 2px 4px 10px 0px rgb(113, 116, 119);
     margin-top: 10px;
     margin-bottom: 10px;
 }
@@ -52,7 +47,7 @@
 .facebook {
     background-image: url('../img/facebook.png');
     background-color: rgb(66,103,178);
-    background-position: 15px 14px;
+    background-position: 15px 15px;
     background-size: 50px;
     padding-right: 22px;
 }
@@ -68,7 +63,7 @@
 .github {
     background-image: url('../img/github.png');
     background-color: rgb(135,194,102);
-    background-position: 11px 9px;
+    background-position: 9px 9px;
     padding-right: 35px;
 }
 
@@ -98,7 +93,7 @@
 .twitter {
     background-image: url('../img/twitter.png');
     background-color: rgb(105,171,233);
-    background-position: 15px 11px;
+    background-position: 13px 11px;
     background-size: 60px;
     padding-right: 39px;
 }
@@ -181,10 +176,53 @@
 
 /* Collapse sidebar option and collapse button only for mobile */
 @media (min-width: 576px) {
-  .sidebar > button {
-    display: none;
-  }
-  .sidebar > .collapse {
-    display: block;
-  }
+    .sidebar > button {
+        display: none;
+    }
+    .sidebar > .collapse {
+        display: block;
+    }
 }
+
+
+/*
+ * Item Cards
+ */
+
+.card {
+    max-width: 600px;
+}
+
+.card-items {
+    display: grid;
+}
+
+.img-helper {
+    overflow: hidden;
+}
+
+@media screen and (min-width: 441px) {
+    .card-items {
+        grid-template-columns: repeat(2, 50%);
+    }
+}
+
+@media screen and (min-width: 992px) {
+    .card-items {
+        grid-template-columns: repeat(3, 33%);
+    }
+}
+
+@media screen and (min-width: 1200px) {
+    .card-items {
+        grid-template-columns: repeat(4, 25%);
+    }
+}
+
+@media screen and (min-width: 1800px) {
+    .card-items {
+        grid-template-columns: repeat(6, 16.66%);
+    }
+}
+
+
