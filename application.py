@@ -68,7 +68,7 @@ def verify_token(f):
             # Check authorization token
             user_id = User.verify_auth_token(auth_header[1])
             if not user_id:
-                return jsonify(Error='wrong authorization token'), 401
+                return jsonify(Error='Wrong authorization token'), 401
 
             # Fetch user from database and assign it to the request context
             user = db_session.query(User).get(user_id)
@@ -199,13 +199,22 @@ def create_item(category_id, name, description, user_id, image):
 
 
 def update_item(item, category_id, name, description, image):
-    if category_id and category_id !='':
+    image_url = upload_file(image)
+
+    # Skip update and call to database if there is nothing to update.
+    if (  (not name or name == '') and
+          (not description or description == '') and
+          (not category_id or category_id == '') and
+          not image_url):
+        return
+
+    # Update item and commit to database.
+    if category_id and category_id != '':
         item.category_id = category_id
     if name and name != '':
         item.name = name
     if description and description != '':
         item.description = description
-    image_url = upload_file(image)
     if image_url:
         item.image_url = image_url
     db_session.add(item)
@@ -664,7 +673,7 @@ def api_catalog():
             return jsonify(Item=item.serialize)
         except IntegrityError as e:
             db_session.rollback()
-            return jsonify(Error=e.args[0]), 400
+            return jsonify(Error=e.args[0]), 422
 
 
 @app.route('/api/v1/catalog/<category_name>', methods=['GET'])
@@ -714,7 +723,7 @@ def api_item(category_name, item_name):
                     return jsonify(Item=item.serialize)
                 except IntegrityError as e:
                     db_session.rollback()
-                    return jsonify(Error=e.args[0]), 400
+                    return jsonify(Error=e.args[0]), 422
             elif request.method == 'DELETE':
                 if g.user.id != item.user_id:
                     return jsonify(Error='You are not authorized to delete '

@@ -16,7 +16,7 @@
               </div>
               <div class="form-group">
                 <label for="name">Name</label>
-                <input required class="form-control" id="name" type="text" name="name" placeholder="{{ item.name }}">
+                <input class="form-control" id="name" type="text" name="name" placeholder="{{ item.name }}">
               </div>
               <div class="form-group">
                 <label for="description">Description</label>
@@ -24,7 +24,7 @@
               </div>
               <div class="form-group">
                 <label for="category">Category</label>
-                <select required class="form-control" id="category" name="category_id">
+                <select class="form-control" id="category" name="category_id">
                   {% for category in categories %}
                     {% if category.id == item.category_id %}
                       <option value="{{ category.id }}" selected>{{category.name}}</option>
