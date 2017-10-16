@@ -1,27 +1,22 @@
 #!/usr/bin/env python3
+''' Catalog Web App'''
 import json
-
-from requests import PreparedRequest
-from requests_oauthlib import OAuth1Session, OAuth2Session
-
-from flask_seasurf import SeaSurf
+import random
+from hashlib import sha256
+from os import urandom, environ, path
+from functools import wraps
 
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
-from models import Base, User, Item, Category
-
 from flask import (Flask, request, render_template, redirect, url_for, flash,
                    jsonify, g, session)
-
-from hashlib import sha256
-from os import urandom, environ, path
-
-from functools import wraps
-
 from werkzeug.utils import secure_filename
+from flask_seasurf import SeaSurf
+from requests import PreparedRequest
+from requests_oauthlib import OAuth1Session, OAuth2Session
 
-import random
+from models import Base, User, Item, Category
 
 # Connect to database
 engine = create_engine('sqlite:///catalog.db')
@@ -188,8 +183,8 @@ def create_item(category_id, name, description, user_id, image):
     image_url = upload_file(image)
     # If no image is uploaded, add a default image
     if not image_url:
-        image_url = url_for('static', filename=(app.config['UPLOAD_FOLDER']
-                            +app.config['DEFAULT_IMAGE']))
+        image_url = url_for('static', filename=(app.config['UPLOAD_FOLDER'] +
+                            app.config['DEFAULT_IMAGE']))
 
     item = Item(name=name, description=description, category_id=category_id,
                 user_id=user_id, image_url=image_url)
@@ -202,10 +197,10 @@ def update_item(item, category_id, name, description, image):
     image_url = upload_file(image)
 
     # Skip update and call to database if there is nothing to update.
-    if (  (not name or name == '') and
-          (not description or description == '') and
-          (not category_id or category_id == '') and
-          not image_url):
+    if ((not name or name == '') and
+            (not description or description == '') and
+            (not category_id or category_id == '') and
+            not image_url):
         return
 
     # Update item and commit to database.
@@ -661,11 +656,11 @@ def api_catalog():
            successfully added to the database, return a json with success
            message. If not, rollback the changes and return a json with
            an error message.'''
-        category_id = (request.args.get('category_id')
-                       or request.form.get('category_id'))
+        category_id = (request.args.get('category_id') or
+                       request.form.get('category_id'))
         name = request.args.get('name') or request.form.get('name')
-        description = (request.args.get('description')
-                       or request.form.get('description'))
+        description = (request.args.get('description') or
+                       request.form.get('description'))
         image = request.files.get('image')
         try:
             item = create_item(category_id, name, description, g.user.id,
@@ -712,11 +707,11 @@ def api_item(category_name, item_name):
                    If item is successfully updated, return a json
                    corresponding to the item. If not, rollback the changes
                    and return a json with an error message.'''
-                category_id = (request.args.get('category_id')
-                               or request.form.get('category_id'))
+                category_id = (request.args.get('category_id') or
+                               request.form.get('category_id'))
                 name = request.args.get('name') or request.form.get('name')
-                description = (request.args.get('description')
-                               or request.form.get('description'))
+                description = (request.args.get('description') or
+                               request.form.get('description'))
                 image = request.files.get('image')
                 try:
                     update_item(item, category_id, name, description, image)

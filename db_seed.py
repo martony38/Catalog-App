@@ -1,14 +1,20 @@
+#!/usr/bin/env python3
+'''Populate database with random placeholder items'''
+import random
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from models import Base, User, Item, Category
 
-import random
-
+# Connect to database
 engine = create_engine('sqlite:///catalog.db')
 Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
 session = DBSession()
+
+# Update this email address with your own
+email_address = 'user@example.com'
 
 lorem_ipsums = ['Lorem ipsum dolor sit amet, consectetur adipiscing elit. '
                 'Integer risus urna, imperdiet eu quam ut, posuere imperdiet '
@@ -139,11 +145,12 @@ lorem_ipsums = ['Lorem ipsum dolor sit amet, consectetur adipiscing elit. '
                 'magna et, egestas arcu.']
 
 lorem_ipsum_words = ['Lorem', 'Ullamcorper', 'Aliquam', 'Dapibus', 'Hendrerit',
-         'Elementum', 'Dolor', 'Magna', 'Fringilla', 'Sociosqu', 'Facilisis',
-         'Blandit', 'Phasellus', 'Aenean', 'Proin', 'Vestibulum', 'Maecenas',
-         'Pellentesque', 'Donec', 'Curabitur', 'Etiam', 'Nam', 'Class',
-         'Quisque', 'Fusce', 'Morbi', 'Vivamus', 'Nulla', 'Integer', 'Curae',
-         'Suspendisse']
+                     'Elementum', 'Dolor', 'Magna', 'Fringilla', 'Sociosqu',
+                     'Facilisis', 'Blandit', 'Phasellus', 'Aenean', 'Proin',
+                     'Vestibulum', 'Maecenas', 'Pellentesque', 'Donec',
+                     'Curabitur', 'Etiam', 'Nam', 'Class', 'Quisque', 'Fusce',
+                     'Morbi', 'Vivamus', 'Nulla', 'Integer', 'Curae',
+                     'Suspendisse']
 
 placeholder_image_urls = ['http://lorempixel.com/400/200',
                           'https://placebear.com/400/200',
@@ -151,18 +158,21 @@ placeholder_image_urls = ['http://lorempixel.com/400/200',
                           'http://www.placecage.com/400/200',
                           'http://www.placecage.com/c/400/200']
 
+# Add categories to database
 for categorie_name in lorem_ipsum_words:
     category = Category(name=categorie_name)
     session.add(category)
     session.commit()
 
-user = User(email='user@example.com')
+# Add an user to database
+user = User(email=email_address)
 session.add(user)
 session.commit()
 
 categories = session.query(Category).all()
 users = session.query(User).all()
 
+# Populate database with items
 for i in range(1, 100):
     item = Item(name=random.choice(lorem_ipsum_words),
                 description=random.choice(lorem_ipsums),

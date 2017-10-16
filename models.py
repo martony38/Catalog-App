@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
+from hashlib import sha256
+from os import urandom
 
 from sqlalchemy import (create_engine, Column, ForeignKey, Integer, String,
                         UniqueConstraint, CheckConstraint)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from hashlib import sha256
-from os import urandom
-from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer,
-                          BadSignature, SignatureExpired)
+
+from itsdangerous import (TimedJSONWebSignatureSerializer, BadSignature,
+                          SignatureExpired)
 
 Base = declarative_base()
 
@@ -21,13 +22,13 @@ class User(Base):
     email = Column(String, CheckConstraint('email!=""'), index=True,
                    unique=True, nullable=False)
 
-    def generate_auth_token(self, expiration=600):
-        s = Serializer(secret_key, expires_in=expiration)
+    def generate_auth_token(self):
+        s = TimedJSONWebSignatureSerializer(secret_key)
         return s.dumps({'id': self.id})
 
     @staticmethod
     def verify_auth_token(token):
-        s = Serializer(secret_key)
+        s = TimedJSONWebSignatureSerializer(secret_key)
         try:
             data = s.loads(token)
         except SignatureExpired:
@@ -73,7 +74,9 @@ class Item(Base):
             'id': self.id,
             'name': self.name,
             'description': self.description,
-            'image_url': self.image_url
+            'image_url': self.image_url,
+            'category_id': self.category_id,
+            'user_id': self.user_id
         }
 
 
