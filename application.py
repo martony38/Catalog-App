@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-''' Catalog Web App'''
+'''Run the Catalog app server.'''
 import json
 import random
 from hashlib import sha256
-from os import urandom, environ, path
+from os import urandom, path
 from functools import wraps
 
 from sqlalchemy import create_engine
@@ -24,22 +24,18 @@ Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
 db_session = DBSession()
 
-# For development and testing purposes, enable oauth2 to work without ssl so
-# that the fetch_token method from requests_oauthlib do not raise:
-# oauthlib.oauth2.rfc6749.errors.InsecureTransportError
-environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'img/uploads/'
-app.config['DEFAULT_IMAGE'] = 'chasing-the-snow.jpg'
 
-ALLOWED_EXTENSIONS = set(['png', 'jpg', 'jpeg', 'gif'])
+# Load configuration files
+app.config.from_object('default_settings')
+app.config.from_envvar('APPLICATION_SETTINGS')
 
 # Add CSRF protection using SeaSurf (http://flask-seasurf.readthedocs.io).
 csrf = SeaSurf(app)
 
 
 def debug():
+    '''Launch the debugger if debug mode is enabled.'''
     assert app.debug is False
 
 
@@ -77,7 +73,7 @@ def verify_token(f):
 
 
 def login_required(f):
-    '''Check if user is logged in and if not redirect user.'''
+    '''Redirect users that are not logged in.'''
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -88,7 +84,7 @@ def login_required(f):
 
 
 def redirect_user_if_already_logged_in(f):
-    '''Check if user is already logged in and if so redirect user.'''
+    '''Redirect users that are already logged in.'''
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' in session:
@@ -122,9 +118,9 @@ def clear_session():
 
 
 def get_oauth_credentials(provider):
-    ''' Extract OAuth credentials from file.'''
-    with open('oauth_credentials.json') as secrets_file:
-        secret_json = json.load(secrets_file)[provider]
+    ''' Get OAuth credentials from config.'''
+    secret_json = app.config['OAUTH_CREDENTIALS'][provider]
+
     if provider == 'twitter':
         client_id = secret_json['consumer_key']
         client_secret = secret_json['consumer_secret']
@@ -159,12 +155,12 @@ def error_message(model, model_name, request_type):
 
 
 def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return ('.' in filename and
+            filename.rsplit('.', 1)[1].lower() in
+            app.config['ALLOWED_EXTENSIONS'])
 
 
 def upload_file(file):
-    # TODO: check file size
     # Check there is a file
     if file:
         # If user does not select file, browser also
@@ -539,7 +535,8 @@ def create_new_item():
                                 request.form.get('category_id'),
                                 'browser'), 'alert-danger')
     categories = db_session.query(Category).order_by('name').all()
-    return render_template('create_new_item.html', categories=categories)
+    return render_template('create_new_item.html', categories=categories,
+                           max_file_size=app.config['MAX_CONTENT_LENGTH'])
 
 
 @app.route('/catalog/<category_name>/<item_name>/edit',
@@ -571,7 +568,8 @@ def edit_item(category_name, item_name):
             if request.method == 'GET':
                 categories = db_session.query(Category).order_by('name').all()
                 return render_template('edit_item.html', item=item,
-                                       categories=categories)
+                    categories=categories,
+                    max_file_size=app.config['MAX_CONTENT_LENGTH'])
             elif request.method == 'POST':
                 try:
                     update_item(item, request.form.get('category_id'),
@@ -734,13 +732,10 @@ def api_item(category_name, item_name):
 
 
 @app.errorhandler(404)
-def not_found(message):
-    flash(message, 'alert-danger')
-    return render_template('error.html'), 404
+@app.errorhandler(413)
+def handle_http_error(error):
+    return render_template('error.html', message=error), error.code
 
 
 if __name__ == '__main__':
-    # TODO: change secret key
-    app.secret_key = 'super_secret_key'
-    app.debug = True
     app.run(host='0.0.0.0', port=5000)

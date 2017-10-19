@@ -10,8 +10,8 @@
           <form action="{{ url_for('create_new_item') }}" method="post" enctype="multipart/form-data">
             <div class="card-body">
               <div class="form-group">
-                <label for="UploadItemImage">Upload item image</label>
-                <input type="file" class="form-control-file" name="image" id="UploadItemImage">
+                <label for="NewItemUploadImage">Upload item image</label>
+                <input type="file" class="form-control-file" name="image" id="NewItemUploadImage" data-max-file-size="{{ max_file_size }}">
               </div>
               <div class="form-group">
                 <label for="name">Name</label>
