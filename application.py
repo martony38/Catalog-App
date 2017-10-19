@@ -30,7 +30,7 @@ app = Flask(__name__)
 app.config.from_object('default_settings')
 app.config.from_envvar('APPLICATION_SETTINGS')
 
-# Add CSRF protection using SeaSurf (http://flask-seasurf.readthedocs.io).
+# Add CSRF protection using SeaSurf (http://flask-seasurf.readthedocs.io)
 csrf = SeaSurf(app)
 
 
@@ -118,7 +118,7 @@ def clear_session():
 
 
 def get_oauth_credentials(provider):
-    ''' Get OAuth credentials from config.'''
+    '''Get OAuth credentials.'''
     secret_json = app.config['OAUTH_CREDENTIALS'][provider]
 
     if provider == 'twitter':
@@ -135,7 +135,7 @@ def get_oauth_credentials(provider):
 
 
 def login_or_register_user(provider, email):
-    '''Check if user exists, if not create new user and log them in'''
+    '''Check if user exists (if not create a new user) and log them in.'''
     user = db_session.query(User).filter_by(email=email).first()
     if not user:
         user = User(email=email)
@@ -146,8 +146,9 @@ def login_or_register_user(provider, email):
     session['email'] = user.email
 
 
-def error_message(model, model_name, request_type):
-    error_message = "no {0} '{1}' found".format(model, model_name)
+def error_message(ressource, ressource_name, request_type):
+    '''Return a ressource not found message for html and api endpoints.'''
+    error_message = "no {0} '{1}' found".format(ressource, ressource_name)
     if request_type == 'api':
         return (jsonify(Error=error_message), 404)
     elif request_type == 'browser':
@@ -155,16 +156,15 @@ def error_message(model, model_name, request_type):
 
 
 def allowed_file(filename):
+    '''Check filename format.'''
     return ('.' in filename and
             filename.rsplit('.', 1)[1].lower() in
             app.config['ALLOWED_EXTENSIONS'])
 
 
 def upload_file(file):
-    # Check there is a file
+    '''Save file and return its url if successfull, None otherwise.'''
     if file:
-        # If user does not select file, browser also
-        # submit a empty part without filename
         if file.filename != '':
             if allowed_file(file.filename):
                 filename = secure_filename(file.filename)
@@ -176,7 +176,9 @@ def upload_file(file):
 
 
 def create_item(category_id, name, description, user_id, image):
+    '''Save a new item to database.'''
     image_url = upload_file(image)
+
     # If no image is uploaded, add a default image
     if not image_url:
         image_url = url_for('static', filename=(app.config['UPLOAD_FOLDER'] +
@@ -190,16 +192,16 @@ def create_item(category_id, name, description, user_id, image):
 
 
 def update_item(item, category_id, name, description, image):
+    '''Update an existing item in the database.'''
     image_url = upload_file(image)
 
-    # Skip update and call to database if there is nothing to update.
+    # Skip update and call to database if there is nothing to update
     if ((not name or name == '') and
             (not description or description == '') and
             (not category_id or category_id == '') and
             not image_url):
         return
 
-    # Update item and commit to database.
     if category_id and category_id != '':
         item.category_id = category_id
     if name and name != '':
@@ -213,17 +215,18 @@ def update_item(item, category_id, name, description, image):
 
 
 def get_category_json(category):
-    '''Returns a json with all items from a category.'''
+    '''Return a json with all items from a category.'''
     items = db_session.query(Item).filter_by(category_id=category.id).all()
     category_json = category.serialize
     category_json['items'] = [item.serialize for item in items]
     return category_json
 
 
-# Get a token for a user with login credentials
+
 @app.route('/token', methods=['GET'])
 @login_required
 def get_api_auth_token():
+    '''Get a token for a user with login credentials.'''
     user = db_session.query(User).get(session['user_id'])
     token = user.generate_auth_token()
     return render_template('api_token.html', token=token.decode('ascii'),)
@@ -244,25 +247,24 @@ def disconnect():
 @app.route('/oauth2login/<provider>')
 @redirect_user_if_already_logged_in
 def oauth2_login(provider):
-    # Configure variables for OAuth.
-    client_id, client_secret, redirect_uri = get_oauth_credentials(provider)
+    '''Send user to the OAuth2 provider authorization page.'''
 
+    # Get credentials and configure variables for OAuth2
+    client_id, client_secret, redirect_uri = get_oauth_credentials(provider)
     if provider == 'google':
         scope = 'https://www.googleapis.com/auth/userinfo.email'
         auth_base_url = 'https://accounts.google.com/o/oauth2/v2/auth'
-
     elif provider == 'github':
         scope = 'user:email'
         auth_base_url = 'https://github.com/login/oauth/authorize'
-
     elif provider == 'facebook':
         scope = 'email'
         auth_base_url = 'https://www.facebook.com/v2.10/dialog/oauth'
-
     elif provider == 'linkedin':
         scope = None
         auth_base_url = 'https://www.linkedin.com/oauth/v2/authorization'
 
+    # Redirect and flash error message if wrong provider is used
     else:
         flash('You can not login with this provider: {}'.format(provider),
               'alert-danger')
@@ -277,29 +279,27 @@ def oauth2_login(provider):
 @app.route('/oauth2callback/<provider>')
 @redirect_user_if_already_logged_in
 def oauth2_callback(provider):
-    # Get credentials for OAuth.
+    '''Handle callback from an OAuth2 provider and login user.'''
+
+    # Get credentials and configure variables for OAuth2
     client_id, client_secret, redirect_uri = get_oauth_credentials(provider)
     payload = {}
-
     if provider == 'google':
         token_url = 'https://www.googleapis.com/oauth2/v4/token'
         protected_url = 'https://www.googleapis.com/oauth2/v1/userinfo'
-
     elif provider == 'github':
         token_url = 'https://github.com/login/oauth/access_token'
         protected_url = 'https://api.github.com/user/emails'
-
     elif provider == 'facebook':
         token_url = 'https://graph.facebook.com/v2.10/oauth/access_token'
         protected_url = 'https://graph.facebook.com/v2.10/me'
         payload['fields'] = 'email'
-
     elif provider == 'linkedin':
         token_url = 'https://www.linkedin.com/oauth/v2/accessToken'
         protected_url = 'https://api.linkedin.com/v1/people/~:(email-address)'
         payload['format'] = 'json'
 
-    # Flash error message and redirect user if an unknown provider is used.
+    # Redirect and flash error message if wrong provider is used
     else:
         flash('You can not login with this provider: {}'.format(provider),
               'alert-danger')
@@ -312,10 +312,10 @@ def oauth2_callback(provider):
         oauth.fetch_token(token_url, client_secret=client_secret,
                           authorization_response=request.url)
 
-        # Fetch protected user info.
+        # Fetch protected user info
         r = oauth.get(protected_url, params=payload)
 
-        # Fetch the user email from provider response.
+        # Extract the user email
         if provider == 'linkedin':
             email = r.json()['emailAddress']
         elif provider == 'github':
@@ -325,8 +325,6 @@ def oauth2_callback(provider):
         else:
             email = r.json()['email']
     except:
-        # If either access token or user info are not obtained from OAuth
-        # provider, flash error message and redirect to login page.
         flash('Error: could not obtain your info from {}'.format(provider),
               'alert-danger')
         return redirect(url_for('show_login'))
@@ -338,15 +336,14 @@ def oauth2_callback(provider):
 @app.route('/oauth1login/<provider>')
 @redirect_user_if_already_logged_in
 def oauth1_login(provider):
-    # Create a state token to prevent request forgery.
-    # Store it in session for later validation.
-    state = sha256(urandom(1024)).hexdigest()
-    session['oauth_state'] = state
+    '''Send user to the OAuth1 provider authorization page.'''
 
-    # Get credentials for OAuth.
+    # Get credentials for OAuth1
     client_key, client_secret, redirect_uri = get_oauth_credentials(provider)
 
-    # Add state parameter to callback uri
+    # Create a state token to prevent request forgery similarly to OAuth2.
+    state = sha256(urandom(1024)).hexdigest()
+    session['oauth_state'] = state
     payload = {'state': state}
     callback_req = PreparedRequest()
     callback_req.prepare_url(redirect_uri, payload)
@@ -374,6 +371,7 @@ def oauth1_login(provider):
             flash('Error while requesting token to Twitter', 'alert-danger')
             return redirect(url_for('show_login'))
 
+    # Redirect and flash error message if wrong provider is used
     else:
         flash('You can not login with this provider: {}'.format(provider),
               'alert-danger')
@@ -383,19 +381,23 @@ def oauth1_login(provider):
 @app.route('/oauth1callback/<provider>')
 @redirect_user_if_already_logged_in
 def oauth1_callback(provider):
+    '''Handle callback from an OAuth1 provider and login user.'''
+
     # Ensure that the request is not a forgery and that the user sending
     # this connect request is the expected user.
     if request.args.get('state') != session['oauth_state']:
         flash('Error: invalid state parameter', 'alert-danger')
         return redirect(url_for('show_login'))
 
-    # Get credentials for OAuth.
+    # Get credentials for OAuth1
     client_key, client_secret, redirect_uri = get_oauth_credentials(provider)
 
     if provider == 'twitter':
+
         # Verify that the token matches the request token received
         # in the first step of the flow.
         if request.args.get('oauth_token') == session['resource_owner_key']:
+
             # Convert the request token to an access token.
             access_token_url = 'https://api.twitter.com/oauth/access_token'
             resource_owner_key = session['resource_owner_key']
@@ -413,29 +415,25 @@ def oauth1_callback(provider):
                 flash('Error: could not get access token', 'alert-danger')
                 return redirect(url_for('show_login'))
 
-            # Set up OAuth to Access user info.
+            # Fetch protected user info
             protected_url = ('https://api.twitter.com/1.1/account/'
                              'verify_credentials.json')
             payload = {'include_email': 'true'}
             twitter = OAuth1Session(client_key, client_secret=client_secret,
                                     resource_owner_key=resource_owner_key,
                                     resource_owner_secret=resource_owner_sec)
-
-            # Fetch the user email from provider.
             try:
                 r = twitter.get(protected_url, params=payload)
                 email = r.json()['email']
             except:
-                # If no email is obtained from OAuth provider, flash error
-                # message and redirect to login page.
                 flash('Error: could not obtain email from {}'.format(provider),
                       'alert-danger')
                 return redirect(url_for('show_login'))
+
         else:
             flash('Error: no token or wrong token received from provider',
                   'alert-danger')
             return redirect(url_for('show_login'))
-
     else:
         flash('You can not login with this provider: {}'.format(provider),
               'alert-danger')
@@ -448,7 +446,7 @@ def oauth1_callback(provider):
 @app.route('/')
 @app.route('/catalog', methods=['GET'])
 def show_catalog():
-    '''Display the catalog page'''
+    '''Return the Catalog app homepage.'''
     categories = db_session.query(Category).order_by('name').all()
     latest_items = (db_session.query(Item)
                     .order_by(Item.id.desc()).limit(12).all())
@@ -459,10 +457,7 @@ def show_catalog():
 
 @app.route('/catalog/<category_name>', methods=['GET'])
 def show_category(category_name):
-    '''Try to find a category in the database whose name matches the uri.
-       If a match is found, display the corresponding category page.
-       If no category is found, flash an error message and redirect to the
-       catalog page.'''
+    '''Return the page with all the items from a category.'''
     category = (db_session.query(Category)
                 .filter_by(name=category_name).one_or_none())
     if category:
@@ -481,10 +476,7 @@ def show_category(category_name):
 
 @app.route('/catalog/<category_name>/<item_name>', methods=['GET'])
 def show_item(category_name, item_name):
-    '''Try to find a item in the database whose name and category name match
-       the uri. If a match is found, display the corresponding item page.
-       If no category or item is found, flash an error message and redirect
-       to the catalog or category page, respectively.'''
+    '''Return the page for an item.'''
     category = (db_session.query(Category)
                 .filter_by(name=category_name).one_or_none())
     if category:
@@ -509,12 +501,12 @@ def show_item(category_name, item_name):
 @app.route('/catalog/new', methods=['GET', 'POST'])
 @login_required
 def create_new_item():
-    '''Display the page to create a new item for GET requests.
-       In case of POST requests, try to add a new item to the database
-       with the  values passed in the form fields. If item is successfully
-       added to the database, flash success message and redirect to the
-       item category page. If not, rollback the changes, flash an error
-       message, and display the page to create a new item'''
+    '''Create a new item.
+
+    GET: Return the page with a form for creating a new item.
+    POST: Try to create a new item.  If successfull, flash success
+    message and redirect to newly created item's category page.
+    '''
     if request.method == 'POST':
         category = (db_session.query(Category)
                     .get(request.form.get('category_id')))
@@ -526,6 +518,9 @@ def create_new_item():
                 flash('item successfully created', 'alert-success')
                 return redirect(url_for('show_category',
                                         category_name=category.name))
+
+            # Rollback the changes and display error message if new item name
+            # is blank or already taken.
             except IntegrityError as e:
                 db_session.rollback()
                 flash('Item not created due to error: ' + e.args[0],
@@ -534,6 +529,7 @@ def create_new_item():
             flash(error_message('category with id ',
                                 request.form.get('category_id'),
                                 'browser'), 'alert-danger')
+
     categories = db_session.query(Category).order_by('name').all()
     return render_template('create_new_item.html', categories=categories,
                            max_file_size=app.config['MAX_CONTENT_LENGTH'])
@@ -543,15 +539,12 @@ def create_new_item():
            methods=['GET', 'POST'])
 @login_required
 def edit_item(category_name, item_name):
-    '''Try to find a item in the database whose name and category name match
-       the uri. If a match is found, display the page to edit this item for
-       a GET request. In case of PUT requests, try to update item in the
-       database with the  values passed in the form fields. If item is
-       successfully updated, flash a success message and redirect to the
-       item category page. If not, rollback the changes, flash an error
-       message, and display the page to edit this item. If no category or
-       item is found, flash an error message and redirect to the catalog
-       or category page, respectively.'''
+    '''Edit an existing item.
+
+    GET: Return the page with a form for editing an existing item.
+    POST: Try to update item.  If successfull, flash success
+    message and redirect to updated item's category page.
+    '''
     category = (db_session.query(Category)
                 .filter_by(name=category_name).one_or_none())
     if category:
@@ -559,17 +552,21 @@ def edit_item(category_name, item_name):
                 .filter_by(name=item_name, category_id=category.id)
                 .one_or_none())
         if item:
+
+            # Only user whom item belongs to can edit it
             if session['user_id'] != item.user_id:
                 flash('You are not authorized to edit this item',
                       'alert-danger')
                 return redirect(url_for('show_item',
                                         category_name=category.name,
                                         item_name=item.name))
+
             if request.method == 'GET':
                 categories = db_session.query(Category).order_by('name').all()
                 return render_template('edit_item.html', item=item,
                     categories=categories,
                     max_file_size=app.config['MAX_CONTENT_LENGTH'])
+
             elif request.method == 'POST':
                 try:
                     update_item(item, request.form.get('category_id'),
@@ -579,6 +576,9 @@ def edit_item(category_name, item_name):
                     flash('item successfully edited', 'alert-success')
                     return redirect(url_for('show_category',
                                             category_name=item.category.name))
+
+                # Rollback the changes and display error message if updated
+                # item name is blank or already taken.
                 except IntegrityError as e:
                     db_session.rollback()
                     flash('Item not edited due to error: ' + e.args[0],
@@ -597,13 +597,12 @@ def edit_item(category_name, item_name):
            methods=['GET', 'POST'])
 @login_required
 def delete_item(category_name, item_name):
-    '''Try to find a item in the database whose name and category name match
-       the uri. If no category or item is found, flash an error message and
-       redirect to the catalog or category page, respectively.
-       If a match is found, display the page to delete this item for
-       a GET request. In the case of a DELETE request, delete item from
-       database, flash a success message, and redirect to the item category
-       page.'''
+    '''Delete an item.
+
+    GET: Return the page with a form for deleting an existing item.
+    POST: Try to delete item.  If successfull, flash success
+    message and redirect to updated item's category page.
+    '''
     category = (db_session.query(Category)
                 .filter_by(name=category_name).one_or_none())
     if category:
@@ -611,16 +610,20 @@ def delete_item(category_name, item_name):
                 .filter_by(name=item_name, category_id=category.id)
                 .one_or_none())
         if item:
+
+            # Only user whom items belongs to can delete it
             if session['user_id'] != item.user_id:
                 flash('You are not authorized to delete this item',
                       'alert-danger')
                 return redirect(url_for('show_item',
                                         category_name=category.name,
                                         item_name=item.name))
+
             if request.method == 'GET':
                 categories = db_session.query(Category).order_by('name').all()
                 return render_template('delete_item.html', item=item,
                                        categories=categories)
+
             elif request.method == 'POST':
                 category = item.category
                 db_session.delete(item)
@@ -643,17 +646,17 @@ def delete_item(category_name, item_name):
 @app.route('/api/v1/catalog', methods=['GET', 'POST'])
 @verify_token
 def api_catalog():
+    '''Return the catalog or create a new item.
+
+    GET: Return the entire catalog in json.
+    POST: Create a new item.
+    '''
     if request.method == 'GET':
         categories = db_session.query(Category).order_by('name').all()
         return jsonify(catalog={'categories': [get_category_json(category)
                                                for category in categories]})
 
     elif request.method == 'POST':
-        '''POST method to create a new item: try to add a new item to
-           the database with the the request parameters. If item is
-           successfully added to the database, return a json with success
-           message. If not, rollback the changes and return a json with
-           an error message.'''
         category_id = (request.args.get('category_id') or
                        request.form.get('category_id'))
         name = request.args.get('name') or request.form.get('name')
@@ -664,6 +667,9 @@ def api_catalog():
             item = create_item(category_id, name, description, g.user.id,
                                image)
             return jsonify(Item=item.serialize)
+
+        # Rollback the changes and display error message if new item name is
+        # blank or already taken.
         except IntegrityError as e:
             db_session.rollback()
             return jsonify(Error=e.args[0]), 422
@@ -671,6 +677,7 @@ def api_catalog():
 
 @app.route('/api/v1/catalog/<category_name>', methods=['GET'])
 def api_category(category_name):
+    '''Return all items from a category in json.'''
     category = (db_session.query(Category)
                 .filter_by(name=category_name)
                 .one_or_none())
@@ -685,6 +692,12 @@ def api_category(category_name):
            methods=['GET', 'PUT', 'DELETE'])
 @verify_token
 def api_item(category_name, item_name):
+    '''Return info on an item or update or delete it.
+
+    GET: Return item info in json.
+    PUT: Edit item.
+    DELETE: Delete item.
+    '''
     category = (db_session.query(Category)
                 .filter_by(name=category_name)
                 .one_or_none())
@@ -693,18 +706,17 @@ def api_item(category_name, item_name):
                 .filter_by(name=item_name, category_id=category.id)
                 .one_or_none())
         if item:
+
             if request.method == 'GET':
-                # Return a json corresponding to the item.
                 return jsonify(Item=item.serialize)
+
             elif request.method == 'PUT':
+
+                # Only user whom items belongs to can edit it
                 if g.user.id != item.user_id:
                     return jsonify(Error='You are not authorized to edit '
                                    'this item'), 401
-                '''PUT method to update an item: try to update the item
-                   in the database with the values passed in the request.
-                   If item is successfully updated, return a json
-                   corresponding to the item. If not, rollback the changes
-                   and return a json with an error message.'''
+
                 category_id = (request.args.get('category_id') or
                                request.form.get('category_id'))
                 name = request.args.get('name') or request.form.get('name')
@@ -714,17 +726,24 @@ def api_item(category_name, item_name):
                 try:
                     update_item(item, category_id, name, description, image)
                     return jsonify(Item=item.serialize)
+
+                # Rollback the changes and display error message if updated
+                # item name is blank or already taken.
                 except IntegrityError as e:
                     db_session.rollback()
                     return jsonify(Error=e.args[0]), 422
+
             elif request.method == 'DELETE':
+
+                # Only user whom items belongs to can delete it
                 if g.user.id != item.user_id:
                     return jsonify(Error='You are not authorized to delete '
                                    'this item'), 401
-                # Delete item from database
+
                 db_session.delete(item)
                 db_session.commit()
                 return jsonify(Success='item deleted')
+
         else:
             return error_message('item', item_name, 'api')
     else:
@@ -734,6 +753,7 @@ def api_item(category_name, item_name):
 @app.errorhandler(404)
 @app.errorhandler(413)
 def handle_http_error(error):
+    '''Return page not found or request too large error pages.'''
     return render_template('error.html', message=error), error.code
 
 
