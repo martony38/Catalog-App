@@ -75,7 +75,7 @@ The catalog API provides methods for accessing a resource such as an item or a c
 ---
 ### Fetch Entire Catalog
 
-* **URL** api/v1/catalog
+* **URL** catalog/api/v1.0/items
 
 * **Method:** `GET`
 
@@ -90,16 +90,20 @@ The catalog API provides methods for accessing a resource such as an item or a c
         "id": 14,
         "items": [
           {
+            "category_id": 14,
             "description": "Lorem ipsum do...",
             "id": 40,
             "image_url": "/static/img/uploads/image1.jpg",
-            "name": "Sociosqu"
+            "name": "Sociosqu",
+            "user_id": 1
           },
           {
+            "category_id": 14,
             "description": "Lorem ipsum do...",
             "id": 80,
             "image_url": "/static/img/uploads/image2.jpg",
-            "name": "Integer"
+            "name": "Integer",
+            "user_id": 3
           }
         ],
         "name": "Aenean"
@@ -109,17 +113,21 @@ The catalog API provides methods for accessing a resource such as an item or a c
         "id": 3,
         "items": [
           {
+            "category_id": 3,
             "description": "Lorem ipsum do...",
             "id": 20,
             "image_url": "/static/img/uploads/image8.jpg",
-            "name": "Blandit"
+            "name": "Blandit",
+            "user_id": 1
           },
           ...,
           {
+            "category_id": 3,
             "description": "Lorem ipsum do...",
             "id": 39,
             "image_url": "/static/img/uploads/image9.jpg",
-            "name": "Vestibulum"
+            "name": "Vestibulum",
+            "user_id": 10
           }
         ],
         "name": "Aliquam"
@@ -128,12 +136,12 @@ The catalog API provides methods for accessing a resource such as an item or a c
   }
 }`
 
-* **Sample Call:** `curl -X GET http://localhost:5000/api/v1/catalog`
+* **Sample Call:** `curl -X GET http://localhost:5000/catalog/api/v1.0/items`
 
 ----
 ### Fetch Category
 
-* **URL** api/v1/catalog/:category
+* **URL** catalog/api/v1.0/:category
 
 * **Method:** `GET`
 
@@ -152,17 +160,21 @@ The catalog API provides methods for accessing a resource such as an item or a c
     "id": 14,
     "items": [
       {
+        "category_id": 14,
         "description": "Lorem ipsum do...",
         "id": 40,
         "image_url": "/static/img/uploads/image1.jpg",
-        "name": "Sociosqu"
+        "name": "Sociosqu",
+        "user_id": 10
       },
       ...,
       {
+        "category_id": 14,
         "description": "Lorem ipsum do...",
         "id": 80,
         "image_url": "/static/img/uploads/image2.jpg",
-        "name": "Integer"
+        "name": "Integer",
+        "user_id": 1
       }
     ],
     "name": "Aenean"
@@ -175,12 +187,12 @@ The catalog API provides methods for accessing a resource such as an item or a c
     **Content:**
     `{ "Error": "no category 'category_name' found" }`
 
-* **Sample Call:** `curl -X GET http://localhost:5000/api/v1/catalog/category_name`
+* **Sample Call:** `curl -X GET http://localhost:5000/catalog/api/v1.0/category_name`
 
 ----
 ### Fetch Item
 
-* **URL** api/v1/catalog/:category/:item
+* **URL** catalog/api/v1.0/:category/:item
 
 * **Method:** `GET`
 
@@ -199,10 +211,12 @@ The catalog API provides methods for accessing a resource such as an item or a c
     **Content:**
     `{
   "Item": {
+    "category_id": 14,
     "description": "Lorem ipsum do...",
     "id": 40,
     "image_url": "/static/img/uploads/image.jpg",
-    "name": "Sociosqu"
+    "name": "Sociosqu",
+    "user_id": 10
   }
 }`
 
@@ -213,12 +227,12 @@ The catalog API provides methods for accessing a resource such as an item or a c
     `{ "Error": "no item 'item_name' found" }`
     **or** `{ "Error": "no category 'category_name' found" }`
 
-* **Sample Call:** `curl -X GET http://localhost:5000/api/v1/catalog/category_name/item_name`
+* **Sample Call:** `curl -X GET http://localhost:5000/catalog/api/v1.0/category_name/item_name`
 
 ----
 ### Create A New Item
 
-* **URL** api/v1/catalog
+* **URL** catalog/api/v1.0/items
 
 * **Method:** `POST`
 
@@ -273,7 +287,7 @@ The catalog API provides methods for accessing a resource such as an item or a c
 * **Sample Call:**
 
     ```
-    curl -X POST http://localhost:5000/api/catalog \
+    curl -X POST http://localhost:5000/catalog/api/v1.0/items \
       -H 'authorization: Bearer some_token' \
       -H 'content-type: multipart/form-data; boundary=----Boundary' \
       -F 'name=Item name' \
@@ -285,7 +299,7 @@ The catalog API provides methods for accessing a resource such as an item or a c
    or if no image is uploaded, *x-www-form-urlencoded* can be used:
 
     ```
-    curl -X POST http://localhost:5000/api/catalog \
+    curl -X POST http://localhost:5000/catalog/api/v1.0/items \
       -H 'authorization: Bearer some_token' \
       -H 'content-type: application/x-www-form-urlencoded' \
       -d 'name=Item%20name&description=Lorem%20ipsum%20do...&category_id=1'
@@ -294,7 +308,7 @@ The catalog API provides methods for accessing a resource such as an item or a c
 ----
 ### Edit Item
 
-* **URL** api/v1/catalog/:category/:item
+* **URL** catalog/api/v1.0/:category/:item
 
 * **Method:** `PUT`
 
@@ -345,7 +359,7 @@ The catalog API provides methods for accessing a resource such as an item or a c
 * **Sample Call:**
 
     ```
-    curl -X PUT http://localhost:5000/api/catalog/category_name/item_name \
+    curl -X PUT http://localhost:5000/catalog/api/v1.0/category_name/item_name \
       -H 'authorization: Bearer some_token' \
       -H 'content-type: multipart/form-data; boundary=----Boundary' \
       -F 'name=Item name' \
@@ -357,7 +371,7 @@ The catalog API provides methods for accessing a resource such as an item or a c
    or if no image is uploaded, *x-www-form-urlencoded* can be used:
 
     ```
-    curl -X PUT http://localhost:5000/api/catalog/category_name/item_name \
+    curl -X PUT http://localhost:5000/catalog/api/v1.0/category_name/item_name \
       -H 'authorization: Bearer some_token' \
       -H 'content-type: application/x-www-form-urlencoded' \
       -d 'name=Item%20name&description=Lorem%20ipsum%20do...&category_id=1'
@@ -366,7 +380,7 @@ The catalog API provides methods for accessing a resource such as an item or a c
 ----
 ### Delete Item
 
-* **URL** api/v1/catalog/:category/:item
+* **URL** catalog/api/v1.0/:category/:item
 
 * **Method:** `DELETE`
 
@@ -392,7 +406,7 @@ The catalog API provides methods for accessing a resource such as an item or a c
 * **Sample Call:**
 
     ```
-    curl -X DELETE http://localhost:5000/api/catalog/category_name/item_name \
+    curl -X DELETE http://localhost:5000/catalog/api/v1.0/category_name/item_name \
       -H 'authorization: Bearer some_token' \
     ```
 

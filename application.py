@@ -641,12 +641,24 @@ def delete_item(category_name, item_name):
         return redirect(url_for('show_catalog'))
 
 
-# API routing
+
+@app.route('/catalog/api/v1.0/<category_name>', methods=['GET'])
+def api_category(category_name):
+    '''Return all items from a category in json.'''
+    category = (db_session.query(Category)
+                .filter_by(name=category_name)
+                .one_or_none())
+    if category:
+        return jsonify(Category=get_category_json(category))
+    else:
+        return error_message('category', category_name, 'api')
+
+
 @csrf.exempt
-@app.route('/api/v1/catalog', methods=['GET', 'POST'])
+@app.route('/catalog/api/v1.0/items', methods=['GET', 'POST'])
 @verify_token
 def api_catalog():
-    '''Return the catalog or create a new item.
+    '''Return all items or create a new item.
 
     GET: Return the entire catalog in json.
     POST: Create a new item.
@@ -675,24 +687,12 @@ def api_catalog():
             return jsonify(Error=e.args[0]), 422
 
 
-@app.route('/api/v1/catalog/<category_name>', methods=['GET'])
-def api_category(category_name):
-    '''Return all items from a category in json.'''
-    category = (db_session.query(Category)
-                .filter_by(name=category_name)
-                .one_or_none())
-    if category:
-        return jsonify(Category=get_category_json(category))
-    else:
-        return error_message('category', category_name, 'api')
-
-
 @csrf.exempt
-@app.route('/api/v1/catalog/<category_name>/<item_name>',
+@app.route('/catalog/api/v1.0/<category_name>/<item_name>',
            methods=['GET', 'PUT', 'DELETE'])
 @verify_token
 def api_item(category_name, item_name):
-    '''Return info on an item or update or delete it.
+    '''Return an item or update or delete it.
 
     GET: Return item info in json.
     PUT: Edit item.
