@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 '''Run the Catalog app server.'''
+import time
 import json
 import random
 from hashlib import sha256
@@ -9,12 +10,14 @@ from functools import wraps
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
+from redis import Redis
 from flask import (Flask, request, render_template, redirect, url_for, flash,
                    jsonify, g, session)
 from werkzeug.utils import secure_filename
 from flask_seasurf import SeaSurf
 from requests import PreparedRequest
 from requests_oauthlib import OAuth1Session, OAuth2Session
+
 
 from models import Base, User, Item, Category
 
@@ -24,8 +27,12 @@ Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
 db_session = DBSession()
 
-app = Flask(__name__)
+redis = Redis()
+# Response callback to get the sum of the key values in a hash
+redis.set_response_callback('HGETALL',
+                            lambda x: sum([int(i) for i in x[1::2]]))
 
+app = Flask(__name__)
 # Load configuration files
 app.config.from_object('default_settings')
 app.config.from_envvar('APPLICATION_SETTINGS')
@@ -37,6 +44,42 @@ csrf = SeaSurf(app)
 def debug():
     '''Launch the debugger if debug mode is enabled.'''
     assert app.debug is False
+
+
+def rate_limited(f):
+    '''Limit number of requests made to API.'''
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Get options from config
+        limit = app.config['MAX_REQUESTS']
+        time_span = app.config['TIME_SPAN']
+        bucket_interval = app.config['BUCKET_INTERVAL']
+
+        # Set Redis hash name
+        name = 'API:{}'.format(request.remote_addr)
+
+        # Divide time in buckets
+        bucket_number = (int(time.time()) % time_span) // bucket_interval
+        total_buckets = time_span // bucket_interval
+
+        # Set Redis key name
+        key = 'Bucket{}'.format(bucket_number)
+
+        # Redis transactions to increment corresponding bucket, clear old
+        # requests, renew the bucket expiration, and get number of recent
+        # requests to API.  Inspired by:
+        # https://gist.github.com/chriso/54dd46b03155fcf555adccea822193da
+        pipe = redis.pipeline()
+        pipe.hincrby(name, key)
+        pipe.hdel(name, 'Bucket{}'.format((bucket_number + 1) % total_buckets))
+        pipe.expire(name, time_span)
+        pipe.hgetall(name)
+        recent_requests = pipe.execute()[3]
+
+        if recent_requests > limit:
+            return jsonify(Error='You hit the rate limit'), 429
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 def verify_token(f):
@@ -643,6 +686,7 @@ def delete_item(category_name, item_name):
 
 
 @app.route('/catalog/api/v1.0/<category_name>', methods=['GET'])
+@rate_limited
 def api_category(category_name):
     '''Return all items from a category in json.'''
     category = (db_session.query(Category)
@@ -656,6 +700,7 @@ def api_category(category_name):
 
 @csrf.exempt
 @app.route('/catalog/api/v1.0/items', methods=['GET', 'POST'])
+@rate_limited
 @verify_token
 def api_catalog():
     '''Return all items or create a new item.
@@ -690,6 +735,7 @@ def api_catalog():
 @csrf.exempt
 @app.route('/catalog/api/v1.0/<category_name>/<item_name>',
            methods=['GET', 'PUT', 'DELETE'])
+@rate_limited
 @verify_token
 def api_item(category_name, item_name):
     '''Return an item or update or delete it.
