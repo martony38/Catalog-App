@@ -2,7 +2,7 @@
 
 Source code for my fourth project for the [Full Stack Web Developer Nanodegree](https://www.udacity.com/course/full-stack-web-developer-nanodegree--nd004) (FSWDN) program from Udacity.
 
-This project is a web application that provides a list of items within a variety of categories and integrate third party user registration and authentication via OAuth 1.0 and 2.0 The web app also provides API endpoints to access/edit the same information as displayed in the HTML endpoints for an arbitrary item in the catalog.
+This project is a web application that provides a list of items within a variety of categories and integrate third party user registration and authentication via OAuth 1.0 and 2.0 The web app also provides rate limited API endpoints to access/edit the same information as displayed in the HTML endpoints for an arbitrary item in the catalog.
 
 ## Table of Contents
 * [Installation](#Installation)
@@ -60,8 +60,9 @@ Set the callback uri to `http://localhost:5000/oauth2callback/:provider`. Twitte
 
 ## Requirements
 
-You will need [SQLite](https://www.sqlite.org) and [Python](https://www.python.org) installed on your computer as well as the following Python libraries:
+You will need [SQLite](https://www.sqlite.org), [Redis](https://redis.io), and [Python](https://www.python.org) installed on your computer as well as the following Python libraries:
 * [SQLAlchemy](http://www.sqlalchemy.org)
+* [redis-py](https://github.com/andymccurdy/redis-py)
 * [Flask](http://flask.pocoo.org)
 * [Flask-SeaSurf](http://flask-seasurf.readthedocs.io)
 * [Requests](http://docs.python-requests.org)
