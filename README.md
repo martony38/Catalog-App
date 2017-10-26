@@ -7,13 +7,13 @@ This project is a web application that provides a list of items within a variety
 ## Table of Contents
 * [Installation](#installation)
 * [Requirements](#requirements)
-* [API Endpoints](#api_endpoints)
-  * [Fetch Entire Catalog](#fetch_entire_catalog)
-  * [Fetch Category](#fetch_category)
-  * [Fetch Item](#fetch_item)
-  * [Create Item](#create_item)
-  * [Edit Item](#edit_item)
-  * [Delete Item](#delete_item)
+* [API Endpoints](#api-endpoints)
+  * [Fetch Entire Catalog](#fetch-entire-catalog)
+  * [Fetch Category](#fetch-category)
+  * [Fetch Item](#fetch-item)
+  * [Create Item](#create-item)
+  * [Edit Item](#edit-item)
+  * [Delete Item](#delete-item)
 
 ## Installation
 
