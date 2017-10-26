@@ -6,7 +6,7 @@ from os import environ
 UPLOAD_FOLDER = 'img/uploads/'
 
 # Item default image.  Place this image in the UPLOAD_FOLDER defined above.
-DEFAULT_IMAGE = 'chasing-the-snow.jpg'
+DEFAULT_IMAGE = 'tiger-2535888_640.jpg'
 
 # File extensions allowed for upload.
 ALLOWED_EXTENSIONS = {'jpg', 'png', 'jpeg', 'gif'}
