@@ -231,7 +231,7 @@ The catalog API provides methods for accessing a resource such as an item or a c
 * **Sample Call:** `curl -X GET http://localhost:5000/catalog/api/v1.0/category_name/item_name`
 
 ----
-### Create A New Item
+### Create Item
 
 * **URL** catalog/api/v1.0/items
 
