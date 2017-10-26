@@ -5,15 +5,15 @@ Source code for my fourth project for the [Full Stack Web Developer Nanodegree](
 This project is a web application that provides a list of items within a variety of categories and integrate third party user registration and authentication via OAuth 1.0 and 2.0 The web app also provides rate limited API endpoints to access/edit the same information as displayed in the HTML endpoints for an arbitrary item in the catalog.
 
 ## Table of Contents
-* [Installation](#Installation)
-* [Requirements](#Requirements)
-* [API Endpoints](#API_Endpoints)
-  * [Fetch Entire Catalog](#Fetch_Entire_Catalog)
-  * [Fetch Category](#Fetch_Category)
-  * [Fetch Item](#Fetch_Item)
-  * [Create Item](#Create_Item)
-  * [Edit Item](#Edit_Item)
-  * [Delete Item](#Delete_Item)
+* [Installation](#installation)
+* [Requirements](#requirements)
+* [API Endpoints](#api_endpoints)
+  * [Fetch Entire Catalog](#fetch_entire_catalog)
+  * [Fetch Category](#fetch_category)
+  * [Fetch Item](#fetch_item)
+  * [Create Item](#create_item)
+  * [Edit Item](#edit_item)
+  * [Delete Item](#delete_item)
 
 ## Installation
 
