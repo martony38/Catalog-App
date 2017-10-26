@@ -28,6 +28,7 @@ class User(Base):
 
     @staticmethod
     def verify_auth_token(token):
+        '''Check token and return corresponding user.'''
         s = TimedJSONWebSignatureSerializer(secret_key)
         try:
             data = s.loads(token)

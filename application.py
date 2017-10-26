@@ -18,7 +18,6 @@ from flask_seasurf import SeaSurf
 from requests import PreparedRequest
 from requests_oauthlib import OAuth1Session, OAuth2Session
 
-
 from models import Base, User, Item, Category
 
 # Connect to database
@@ -44,6 +43,55 @@ csrf = SeaSurf(app)
 def debug():
     '''Launch the debugger if debug mode is enabled.'''
     assert app.debug is False
+
+
+def allowed_file(filename):
+    '''Check file extension.'''
+    return ('.' in filename and
+            filename.rsplit('.', 1)[1].lower() in
+            app.config['ALLOWED_EXTENSIONS'])
+
+
+@app.before_request
+def normalize_request_parameters():
+    '''Get parameters from POST and PUT requests.'''
+    if request.method in ['PUT', 'POST']:
+        content_type = request.headers.get('Content-Type')
+
+        if request.is_json:
+            category_id = request.get_json().get('category_id')
+            name = request.get_json().get('name')
+            description = request.get_json().get('description')
+            image = None
+
+        elif 'multipart/form-data' in content_type:
+            category_id = request.form.get('category_id')
+            name = request.form.get('name')
+            description = request.form.get('description')
+            image = request.files.get('image')
+
+        elif 'application/x-www-form-urlencoded' in content_type:
+            category_id = request.args.get('category_id')
+            name = request.args.get('name')
+            description = request.args.get('description')
+            image = None
+
+        else:
+            return jsonify(Error='Invalid Content-Type'), 400
+
+        # If parameters are present save them into g object
+        g.params = {}
+        if name and name != '':
+            g.params['name'] = name
+
+        if description and description != '':
+            g.params['description'] = description
+
+        if category_id and category_id != '':
+            g.params['category_id'] = category_id
+
+        if image and allowed_file(image.filename):
+            g.params['image'] = image
 
 
 def rate_limited(f):
@@ -198,63 +246,47 @@ def error_message(ressource, ressource_name, request_type):
         return 'Error: ' + error_message
 
 
-def allowed_file(filename):
-    '''Check filename format.'''
-    return ('.' in filename and
-            filename.rsplit('.', 1)[1].lower() in
-            app.config['ALLOWED_EXTENSIONS'])
-
-
 def upload_file(file):
-    '''Save file and return its url if successfull, None otherwise.'''
-    if file:
-        if file.filename != '':
-            if allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                file.save(path.join('./static/' + app.config['UPLOAD_FOLDER'],
-                                    filename))
-                return url_for('static',
-                               filename=(app.config['UPLOAD_FOLDER']+filename))
-    return None
+    '''Save file and return its url.'''
+    filename = secure_filename(file.filename)
+    file.save(path.join('./static/' + app.config['UPLOAD_FOLDER'], filename))
+    return url_for('static', filename=(app.config['UPLOAD_FOLDER']+filename))
 
 
-def create_item(category_id, name, description, user_id, image):
+def create_item(user_id):
     '''Save a new item to database.'''
-    image_url = upload_file(image)
+    if g.get('params'):
 
-    # If no image is uploaded, add a default image
-    if not image_url:
-        image_url = url_for('static', filename=(app.config['UPLOAD_FOLDER'] +
-                            app.config['DEFAULT_IMAGE']))
+        if g.params.get('image'):
+            img_url = upload_file(g.params['image'])
 
-    item = Item(name=name, description=description, category_id=category_id,
-                user_id=user_id, image_url=image_url)
-    db_session.add(item)
-    db_session.commit()
-    return item
+            # If no image is uploaded, add a default image
+        else:
+            img_url = url_for('static', filename=(app.config['UPLOAD_FOLDER'] +
+                                                  app.config['DEFAULT_IMAGE']))
+
+        item = Item(name=g.params.get('name'),
+                    description=g.params.get('description'),
+                    category_id=g.params.get('category_id'),
+                    user_id=user_id, image_url=img_url)
+        db_session.add(item)
+        db_session.commit()
+        return item
 
 
-def update_item(item, category_id, name, description, image):
+def update_item(item):
     '''Update an existing item in the database.'''
-    image_url = upload_file(image)
-
-    # Skip update and call to database if there is nothing to update
-    if ((not name or name == '') and
-            (not description or description == '') and
-            (not category_id or category_id == '') and
-            not image_url):
-        return
-
-    if category_id and category_id != '':
-        item.category_id = category_id
-    if name and name != '':
-        item.name = name
-    if description and description != '':
-        item.description = description
-    if image_url:
-        item.image_url = image_url
-    db_session.add(item)
-    db_session.commit()
+    if g.get('params'):
+        if g.params.get('category_id'):
+            item.category_id = g.params['category_id']
+        if g.params.get('name'):
+            item.name = g.params['name']
+        if g.params.get('description'):
+            item.description = g.params['description']
+        if g.params.get('image'):
+            item.image_url = upload_file(g.params['image'])
+        db_session.add(item)
+        db_session.commit()
 
 
 def get_category_json(category):
@@ -263,7 +295,6 @@ def get_category_json(category):
     category_json = category.serialize
     category_json['items'] = [item.serialize for item in items]
     return category_json
-
 
 
 @app.route('/token', methods=['GET'])
@@ -555,9 +586,7 @@ def create_new_item():
                     .get(request.form.get('category_id')))
         if category:
             try:
-                create_item(category.id, request.form.get('name'),
-                            request.form.get('description'),
-                            session['user_id'], request.files.get('image'))
+                create_item(session['user_id'])
                 flash('item successfully created', 'alert-success')
                 return redirect(url_for('show_category',
                                         category_name=category.name))
@@ -607,15 +636,12 @@ def edit_item(category_name, item_name):
             if request.method == 'GET':
                 categories = db_session.query(Category).order_by('name').all()
                 return render_template('edit_item.html', item=item,
-                    categories=categories,
-                    max_file_size=app.config['MAX_CONTENT_LENGTH'])
+                                       categories=categories, max_file_size=(
+                                        app.config['MAX_CONTENT_LENGTH']))
 
             elif request.method == 'POST':
                 try:
-                    update_item(item, request.form.get('category_id'),
-                                request.form.get('name'),
-                                request.form.get('description'),
-                                request.files.get('image'))
+                    update_item(item)
                     flash('item successfully edited', 'alert-success')
                     return redirect(url_for('show_category',
                                             category_name=item.category.name))
@@ -684,7 +710,6 @@ def delete_item(category_name, item_name):
         return redirect(url_for('show_catalog'))
 
 
-
 @app.route('/catalog/api/v1.0/<category_name>', methods=['GET'])
 @rate_limited
 def api_category(category_name):
@@ -714,16 +739,12 @@ def api_catalog():
                                                for category in categories]})
 
     elif request.method == 'POST':
-        category_id = (request.args.get('category_id') or
-                       request.form.get('category_id'))
-        name = request.args.get('name') or request.form.get('name')
-        description = (request.args.get('description') or
-                       request.form.get('description'))
-        image = request.files.get('image')
         try:
-            item = create_item(category_id, name, description, g.user.id,
-                               image)
-            return jsonify(Item=item.serialize)
+            item = create_item(g.user.id)
+            if item:
+                return jsonify(Item=item.serialize)
+            else:
+                return jsonify(Error='Item not created'), 422
 
         # Rollback the changes and display error message if new item name is
         # blank or already taken.
@@ -763,14 +784,8 @@ def api_item(category_name, item_name):
                     return jsonify(Error='You are not authorized to edit '
                                    'this item'), 401
 
-                category_id = (request.args.get('category_id') or
-                               request.form.get('category_id'))
-                name = request.args.get('name') or request.form.get('name')
-                description = (request.args.get('description') or
-                               request.form.get('description'))
-                image = request.files.get('image')
                 try:
-                    update_item(item, category_id, name, description, image)
+                    update_item(item)
                     return jsonify(Item=item.serialize)
 
                 # Rollback the changes and display error message if updated
@@ -804,4 +819,4 @@ def handle_http_error(error):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0')

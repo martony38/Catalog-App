@@ -7,7 +7,7 @@
       <div class="col-sm-12">
         <h1>Edit Item</h1>
         <div class="card bg-light border-secondary">
-          <form action="{{ url_for('edit_item', item_name = item.name, category_name = item.category.name) }}" method="post">
+          <form action="{{ url_for('edit_item', item_name = item.name, category_name = item.category.name) }}" method="post" enctype="multipart/form-data">
             <img class="card-img-top" src="{{ item.image_url }}" alt="{{ item.name }}">
             <div class="card-body">
               <div class="form-group">

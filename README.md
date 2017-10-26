@@ -60,7 +60,7 @@ Set the callback uri to `http://localhost:5000/oauth2callback/:provider`. Twitte
 
 ## Requirements
 
-You will need [SQLite](https://www.sqlite.org), [Redis](https://redis.io), and [Python](https://www.python.org) installed on your computer as well as the following Python libraries:
+[SQLite](https://www.sqlite.org), [Redis](https://redis.io), and [Python](https://www.python.org) as well as the following Python libraries:
 * [SQLAlchemy](http://www.sqlalchemy.org)
 * [redis-py](https://github.com/andymccurdy/redis-py)
 * [Flask](http://flask.pocoo.org)
@@ -284,26 +284,41 @@ The catalog API provides methods for accessing a resource such as an item or a c
     **Content:**
     `{ "Error": "(sqlite3.IntegrityError) UNIQUE constraint failed: item.name, item.category_id" }`
     **or** `{ "Error": "(sqlite3.IntegrityError) CHECK constraint failed: item" }`
+    **or** `{ "Error": "(sqlite3.IntegrityError) NOT NULL constraint failed: item.category_id" }`
+    **or** `{ "Error": "(sqlite3.IntegrityError) NOT NULL constraint failed: item.name" }`
+    **or** `{ "Error": "Item not created" }`
 
 * **Sample Call:**
+    ```
+    curl -X POST http://localhost:5000/catalog/api/v1.0/items \
+      -H 'authorization: Bearer api_token \
+      -H 'content-type: application/json' \
+      -d '{
+      "name": "Item name",
+      "description": "Lorem ipsum do...",
+      "category_id": 1
+      }'
+    ```
+
+    Alternatively, *x-www-form-urlencoded* can be used:
 
     ```
     curl -X POST http://localhost:5000/catalog/api/v1.0/items \
-      -H 'authorization: Bearer some_token' \
+      -H 'authorization: Bearer api_token' \
+      -H 'content-type: application/x-www-form-urlencoded' \
+      -d 'name=Item%20name&description=Lorem%20ipsum%20do...&category_id=1'
+    ```
+
+    If an image needs to be uploaded, use *multipart/form-data*:
+
+    ```
+    curl -X POST http://localhost:5000/catalog/api/v1.0/items \
+      -H 'authorization: Bearer api_token' \
       -H 'content-type: multipart/form-data; boundary=----Boundary' \
       -F 'name=Item name' \
       -F 'description=Lorem ipsum do...' \
       -F category_id=1 \
       -F 'image=@Path_to_image_file'
-    ```
-
-   or if no image is uploaded, *x-www-form-urlencoded* can be used:
-
-    ```
-    curl -X POST http://localhost:5000/catalog/api/v1.0/items \
-      -H 'authorization: Bearer some_token' \
-      -H 'content-type: application/x-www-form-urlencoded' \
-      -d 'name=Item%20name&description=Lorem%20ipsum%20do...&category_id=1'
     ```
 
 ----
@@ -351,6 +366,8 @@ The catalog API provides methods for accessing a resource such as an item or a c
   * **Code:** 404 NOT FOUND <br />
     **Content:**
     `{ "Error" : "User id not found" }`
+    **or** `{ "Error": "no category 'category_name' found" }`
+    **or** `{ "Error": "no item 'item_name' found" }`
 
   * **Code:** 422 UNPROCESSABLE ENTRY <br />
     **Content:**
@@ -361,21 +378,34 @@ The catalog API provides methods for accessing a resource such as an item or a c
 
     ```
     curl -X PUT http://localhost:5000/catalog/api/v1.0/category_name/item_name \
-      -H 'authorization: Bearer some_token' \
+      -H 'authorization: Bearer api_token \
+      -H 'content-type: application/json' \
+      -d '{
+      "name": "Item name",
+      "description": "Lorem ipsum do...'",
+      "category_id": 1
+      }'
+    ```
+
+    Alternatively, *x-www-form-urlencoded* can be used:
+
+    ```
+    curl -X PUT http://localhost:5000/catalog/api/v1.0/category_name/item_name \
+      -H 'authorization: Bearer api_token' \
+      -H 'content-type: application/x-www-form-urlencoded' \
+      -d 'name=Item%20name&description=Lorem%20ipsum%20do...&category_id=1'
+    ```
+
+    If an image needs to be uploaded, use *multipart/form-data*:
+
+    ```
+    curl -X PUT http://localhost:5000/catalog/api/v1.0/category_name/item_name \
+      -H 'authorization: Bearer api_token' \
       -H 'content-type: multipart/form-data; boundary=----Boundary' \
       -F 'name=Item name' \
       -F 'description=Lorem ipsum do...' \
       -F category_id=1 \
       -F 'image=@Path_to_image_file'
-    ```
-
-   or if no image is uploaded, *x-www-form-urlencoded* can be used:
-
-    ```
-    curl -X PUT http://localhost:5000/catalog/api/v1.0/category_name/item_name \
-      -H 'authorization: Bearer some_token' \
-      -H 'content-type: application/x-www-form-urlencoded' \
-      -d 'name=Item%20name&description=Lorem%20ipsum%20do...&category_id=1'
     ```
 
 ----
@@ -408,6 +438,6 @@ The catalog API provides methods for accessing a resource such as an item or a c
 
     ```
     curl -X DELETE http://localhost:5000/catalog/api/v1.0/category_name/item_name \
-      -H 'authorization: Bearer some_token' \
+      -H 'authorization: Bearer api_token' \
     ```
 
