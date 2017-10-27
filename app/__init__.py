@@ -6,16 +6,17 @@ from sqlalchemy.orm import sessionmaker
 from flask import Flask
 from flask_seasurf import SeaSurf
 
-from models import Base
-
 # Define the WSGI application object
 app = Flask(__name__)
 # Load configuration files
 app.config.from_object('default_settings')
 app.config.from_envvar('APPLICATION_SETTINGS')
 
+from models import Base
+
 # Connect to database
 engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
+Base.metadata.create_all(engine)
 Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
 db_session = DBSession()

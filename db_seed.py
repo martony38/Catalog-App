@@ -10,6 +10,7 @@ from app.models import Base, User, Item, Category
 
 # Connect to database
 engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
+Base.metadata.create_all(engine)
 Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
 session = DBSession()

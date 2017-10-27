@@ -7,7 +7,6 @@ from sqlalchemy import (create_engine, Column, ForeignKey, Integer, String,
                         UniqueConstraint, CheckConstraint)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-
 from itsdangerous import (TimedJSONWebSignatureSerializer, BadSignature,
                           SignatureExpired)
 
@@ -80,8 +79,3 @@ class Item(Base):
             'category_id': self.category_id,
             'user_id': self.user_id
         }
-
-
-if __name__ == '__main__':
-    engine = create_engine('sqlite:///catalog.db')
-    Base.metadata.create_all(engine)
