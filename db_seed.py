@@ -5,10 +5,11 @@ import random
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from models import Base, User, Item, Category
+from app import app
+from app.models import Base, User, Item, Category
 
 # Connect to database
-engine = create_engine('sqlite:///catalog.db')
+engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
 Base.metadata.bind = engine
 DBSession = sessionmaker(bind=engine)
 session = DBSession()

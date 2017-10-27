@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
-''' Default configuration file for Catalog App'''
-from os import environ
+'''Default configuration file for Catalog App'''
+from os import environ, path
+
+# Define the application directory
+BASE_DIR = path.abspath(path.dirname(__file__))
+
+# Define the database
+SQLALCHEMY_DATABASE_URI = 'sqlite:///' + path.join(BASE_DIR, 'app.db')
 
 # Folder where item images will be uploaded (wil be a subfolder of static/).
 UPLOAD_FOLDER = 'img/uploads/'

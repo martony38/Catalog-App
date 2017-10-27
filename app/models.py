@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+'''Catalog app models.'''
 from hashlib import sha256
 from os import urandom
 
