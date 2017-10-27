@@ -18,7 +18,7 @@ This project is a web application that provides a list of items within a variety
 ## Installation
 
 Clone or download the repository on your computer.
-Create a file  in the *app* folder called for example *app/local_config.py*. Copy and paste in it the following and update with your own settings:
+Create a file in the *catalog* folder called for example *catalog/local_config.py*. Copy and paste in it the following and update with your own settings:
 ```
 # App secret key
 SECRET_KEY='your_app_secret_key'
@@ -47,9 +47,9 @@ OAUTH_CREDENTIALS = {
     }
 }
 ```
-If you need to override any settings from *default_settings.py* do so in *app/local_config.py*.
-You must then set the environment variable *APPLICATION_SETTINGS* to the file path:
-`export APPLICATION_SETTINGS=/path/to/local_config.py`
+If you need to override any settings from *default_settings.py* do so in *local_config.py*.
+You must then set the environment variable *APPLICATION_SETTINGS* to:
+`export APPLICATION_SETTINGS=local_config.py`
 Run `python run.py` to create the database and start the webserver. Access the app in your web browser at `http://localhost:5000/`.
 Optionally you can run `python db_seed.py` to populate the database with random placeholder items. Edit the *db_seed.py* file with your own email address if you want to be able to edit or delete those items.
 
