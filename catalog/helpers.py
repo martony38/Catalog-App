@@ -6,8 +6,8 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 from flask import jsonify, flash, redirect, url_for, session, g
 
-from app import app, db_session
-from models import Item
+from catalog import app, db_session
+from catalog.models import Item
 
 
 def debug():

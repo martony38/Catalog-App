@@ -4,10 +4,10 @@ from sqlalchemy.exc import IntegrityError
 from flask import (request, render_template, redirect, url_for, flash, jsonify,
                    g, session)
 
-from models import Item, Category
-from helpers import (allowed_file, clear_session, error_message,
+from catalog.models import Item, Category
+from catalog.helpers import (allowed_file, clear_session, error_message,
                      login_required, update_item, create_item)
-from app import app, db_session
+from catalog import app, db_session
 
 
 @app.before_request

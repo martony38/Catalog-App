@@ -6,7 +6,7 @@ from os import environ, path
 BASE_DIR = path.abspath(path.dirname(__file__))
 
 # Define the database
-SQLALCHEMY_DATABASE_URI = 'sqlite:///' + path.join(BASE_DIR, 'app.db')
+SQLALCHEMY_DATABASE_URI = 'sqlite:///' + path.join(BASE_DIR, 'catalog.db')
 
 # Folder where item images will be uploaded (wil be a subfolder of static/).
 UPLOAD_FOLDER = 'img/uploads/'

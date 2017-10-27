@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.config.from_object('default_settings')
 app.config.from_envvar('APPLICATION_SETTINGS')
 
-from models import Base
+from catalog.models import Base
 
 # Connect to database
 engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
@@ -24,9 +24,9 @@ db_session = DBSession()
 # Add CSRF protection using SeaSurf (http://flask-seasurf.readthedocs.io)
 csrf = SeaSurf(app)
 
-import controllers
-from app.api.controllers import api as api_module
-from app.oauth.controllers import oauth as oauth_module
+import catalog.controllers
+from catalog.api.controllers import api as api_module
+from catalog.oauth.controllers import oauth as oauth_module
 
 # Register blueprints
 app.register_blueprint(api_module)

@@ -6,9 +6,9 @@ from functools import wraps
 from redis import Redis
 from flask import Blueprint, request, g, jsonify, session, render_template
 
-from app import db_session, csrf
-from app.models import User, Item, Category
-from app.helpers import error_message, create_item, update_item, login_required
+from catalog import db_session, csrf
+from catalog.models import User, Item, Category
+from catalog.helpers import error_message, create_item, update_item, login_required
 
 # Define the blueprint: 'api', set its url prefix: app.url/catalog/api/v1.0
 api = Blueprint('api', __name__, url_prefix='/catalog/api/v1.0',

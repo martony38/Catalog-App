@@ -10,8 +10,8 @@ from flask import Blueprint, url_for, request, redirect, session, flash
 from requests import PreparedRequest
 from requests_oauthlib import OAuth1Session, OAuth2Session
 
-from app import app, db_session
-from app.models import User
+from catalog import app, db_session
+from catalog.models import User
 
 # Define the blueprint: 'oauth'
 oauth = Blueprint('oauth', __name__, template_folder='templates')
