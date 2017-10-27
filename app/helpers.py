@@ -4,22 +4,22 @@ from os import path
 from functools import wraps
 
 from werkzeug.utils import secure_filename
-from flask import current_app, jsonify, flash, redirect, url_for, session, g
+from flask import jsonify, flash, redirect, url_for, session, g
 
-from app import db_session
+from app import app, db_session
 from models import Item
 
 
 def debug():
     '''Launch the debugger if debug mode is enabled.'''
-    assert current_app.debug is False
+    assert app.debug is False
 
 
 def allowed_file(filename):
     '''Check file extension.'''
     return ('.' in filename and
             filename.rsplit('.', 1)[1].lower() in
-            current_app.config['ALLOWED_EXTENSIONS'])
+            app.config['ALLOWED_EXTENSIONS'])
 
 
 def login_required(f):
@@ -68,10 +68,8 @@ def error_message(ressource, ressource_name, request_type):
 def upload_file(file):
     '''Save file and return its url.'''
     filename = secure_filename(file.filename)
-    file.save(path.join('./static/' + current_app.config['UPLOAD_FOLDER'],
-                        filename))
-    return url_for('static',
-                   filename=(current_app.config['UPLOAD_FOLDER'] + filename))
+    file.save(path.join('./static/' + app.config['UPLOAD_FOLDER'], filename))
+    return url_for('static', filename=(app.config['UPLOAD_FOLDER'] + filename))
 
 
 def create_item(user_id):
@@ -83,9 +81,8 @@ def create_item(user_id):
 
             # If no image is uploaded, add a default image
         else:
-            img_url = url_for('static',
-                              filename=(current_app.config['UPLOAD_FOLDER'] +
-                                        current_app.config['DEFAULT_IMAGE']))
+            img_url = url_for('static', filename=(app.config['UPLOAD_FOLDER'] +
+                                                  app.config['DEFAULT_IMAGE']))
 
         item = Item(name=g.params.get('name'),
                     description=g.params.get('description'),
