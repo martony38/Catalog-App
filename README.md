@@ -30,7 +30,7 @@ OAUTH_CREDENTIALS = {
         'client_secret': 'your_google_client_secret'
     },
     'facebook': {
-        'client_id': ''your_facebook_client_id'',
+        'client_id': 'your_facebook_client_id',
         'client_secret': 'your_facebook_client_secret'
     },
     'github':  {
@@ -440,4 +440,3 @@ The catalog API provides methods for accessing a resource such as an item or a c
     curl -X DELETE http://localhost:5000/catalog/api/v1.0/category_name/item_name \
       -H 'authorization: Bearer api_token' \
     ```
-
