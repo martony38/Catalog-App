@@ -68,7 +68,7 @@ def error_message(ressource, ressource_name, request_type):
 def upload_file(file):
     '''Save file and return its url.'''
     filename = secure_filename(file.filename)
-    file.save(path.join('./static/' + app.config['UPLOAD_FOLDER'], filename))
+    file.save(path.join(app.root_path + '/static/' + app.config['UPLOAD_FOLDER'], filename))
     return url_for('static', filename=(app.config['UPLOAD_FOLDER'] + filename))
 
 
