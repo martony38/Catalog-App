@@ -6,7 +6,7 @@ from functools import wraps
 from redis import Redis
 from flask import Blueprint, request, g, jsonify, session, render_template
 
-from catalog import db_session, csrf
+from catalog import app, db_session, csrf
 from catalog.models import User, Item, Category
 from catalog.helpers import error_message, create_item, update_item, login_required
 
